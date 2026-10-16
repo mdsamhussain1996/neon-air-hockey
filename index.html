@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Neon arcade air hockey with power-ups. Play the computer, a friend on the same screen, or a friend online.">
+<meta name="theme-color" content="#06050d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Air Hockey">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>[hidden]{display:none!important} html,body{margin:0} body{padding-top:env(safe-area-inset-top,0px)}</style>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<title>Neon Air Hockey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@400;600;700&display=swap">
+<style>
+/* Layout: an arcade cabinet. The glowing rink stands on the left (on top on phones); the control console sits beside it.
+   Deliberately a single dark look: neon needs the dark. */
+:root{
+  --bg:#06050d;
+  --panel:#0e0c1c;
+  --panel-2:#151231;
+  --line:#2a2552;
+  --ink:#ece9ff;
+  --muted:#9a94c4;
+  --p1:#29f0ff;
+  --p2:#ff3ccf;
+  --amber:#ffc23d;
+  --lime:#b8ff3c;
+  --ice:#8fe3ff;
+  --warn:#ffb36b;
+  --f-display:"Audiowide","Segoe UI",system-ui,sans-serif;
+  --f-body:"Chakra Petch",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-inline:16px;padding-block:0 32px;
+  background-image:radial-gradient(60rem 40rem at 20% -10%, rgba(41,240,255,.08), transparent 60%),radial-gradient(50rem 40rem at 100% 0%, rgba(255,60,207,.07), transparent 60%)}
+.app{max-width:1460px;margin:0 auto}
+header{padding-block:18px 14px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 16px}
+h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(1.5rem,4.6vw,2.3rem);letter-spacing:.04em;line-height:1;
+  color:#fff;text-shadow:0 0 6px rgba(41,240,255,.9),0 0 22px rgba(41,240,255,.5),3px 0 0 rgba(255,60,207,.55)}
+.tag{margin:6px 0 0;color:var(--muted);max-width:50ch}
+.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--f-body);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--panel)}
+.pill i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.pill.on i{background:var(--lime);box-shadow:0 0 8px var(--lime)}
+.pill.off i{background:var(--warn)}
+
+.game{display:grid;grid-template-columns:auto minmax(270px,340px);gap:20px;justify-content:center;align-items:start}
+@media (max-width:820px){.game{grid-template-columns:minmax(0,1fr)}}
+.rinkwrap{display:flex;justify-content:center;min-width:0}
+#rink{display:block;touch-action:none;border-radius:22px;max-width:100%;cursor:crosshair}
+#rink.menu{cursor:default}
+
+.side{display:grid;gap:12px;min-width:0}
+.score{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px}
+.sc .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sc .pts{font:400 2rem/1 var(--f-display);font-variant-numeric:tabular-nums}
+.sc .fx{grid-column:1 / -1;font-size:12px;color:var(--muted);min-height:1.2em}
+#sc0{border-color:rgba(41,240,255,.45)} #sc0 .pts{color:var(--p1);text-shadow:0 0 12px rgba(41,240,255,.6)}
+#sc1{border-color:rgba(255,60,207,.45)} #sc1 .pts{color:var(--p2);text-shadow:0 0 12px rgba(255,60,207,.6)}
+
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:12px}
+.panel h2{margin:0;font:400 1rem/1.2 var(--f-display);letter-spacing:.03em}
+.panel p{margin:0}
+.muted{color:var(--muted)}
+.card{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px}
+.card b{font:400 .95rem var(--f-display);letter-spacing:.02em}
+.card p{font-size:.9rem;color:var(--muted)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{font:700 .95rem var(--f-body);letter-spacing:.02em;padding:9px 16px;border-radius:9px;border:1px solid transparent;cursor:pointer;background:var(--ink);color:var(--bg)}
+.btn.c1{background:var(--p1);color:#03121a;box-shadow:0 0 14px rgba(41,240,255,.35)}
+.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn.ghost:hover{border-color:var(--muted)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
+.seg{display:inline-grid;grid-auto-flow:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{padding:6px 11px;cursor:pointer;font-weight:600;font-size:.88rem}
+.seg label + input + label{border-left:1px solid var(--line)}
+.seg input:checked + label{background:var(--ink);color:var(--bg)}
+.seg input:focus-visible + label{outline:2px solid var(--p1);outline-offset:-3px}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:.85rem;color:var(--muted)}
+input[type="text"]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.code{font:400 clamp(2rem,8vw,2.6rem)/1 var(--f-display);letter-spacing:.14em;color:#fff;text-shadow:0 0 12px rgba(41,240,255,.6)}
+.err{margin:0;background:rgba(255,179,107,.12);color:var(--warn);border:1px solid rgba(255,179,107,.35);border-radius:8px;padding:8px 10px;font-size:.9rem}
+.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:.92rem}
+.check input{width:16px;height:16px;margin:0;accent-color:var(--p1)}
+.keys{font-size:.9rem;color:var(--muted)}
+.keys kbd{font:600 12px var(--f-body);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink);background:var(--panel-2)}
+.legend{display:grid;gap:8px;margin:10px 0 2px;padding:0;list-style:none}
+.legend li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start}
+.legend i{width:14px;height:14px;border-radius:50%;margin-top:3px;display:inline-block}
+/* while a match is on, drop the title and rules so the whole rink fits in view (laptops and phones) */
+body.playing header, body.playing details.rules{display:none}
+body.playing .app{padding-top:12px}
+@media (max-width:820px){
+  body.playing .game{gap:10px}
+  body.playing .app{padding-top:8px}
+  body.playing .sc{padding:6px 10px}
+  body.playing .sc .pts{font-size:1.5rem}
+}
+details.rules{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+details.rules summary{cursor:pointer;font:400 .95rem var(--f-display);letter-spacing:.02em}
+details.rules p{margin:8px 0 0;color:var(--muted);font-size:.92rem}
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1>NEON AIR HOCKEY</h1>
+      <p class="tag">First to 7 goals. Smash the puck, grab power-ups in the centre zone, and keep your goal locked.</p>
+    </div>
+    <div class="row"><button class="btn ghost" id="installBtn" type="button" hidden>Install app</button><span class="pill" id="conn" hidden><i></i><span id="connText">Online</span></span></div>
+  </header>
+
+  <main class="game">
+    <div class="rinkwrap"><canvas id="rink" class="menu" role="img" aria-label="Air hockey rink"></canvas></div>
+
+    <aside class="side">
+      <section class="score" aria-label="Score">
+        <div class="sc" id="sc0"><span class="nm" id="nm0">Cyan</span><span class="pts" id="pt0">0</span><span class="fx" id="fx0"></span></div>
+        <div class="sc" id="sc1"><span class="nm" id="nm1">Magenta</span><span class="pts" id="pt1">0</span><span class="fx" id="fx1"></span></div>
+      </section>
+
+      <!-- Menu -->
+      <section class="panel" id="pMenu">
+        <h2>Choose a game</h2>
+        <div class="card">
+          <b>Vs computer</b>
+          <div class="row">
+            <div class="seg" role="radiogroup" aria-label="Computer strength">
+              <input type="radio" name="lv" id="lv1" value="1"><label for="lv1">Easy</label>
+              <input type="radio" name="lv" id="lv2" value="2" checked><label for="lv2">Medium</label>
+              <input type="radio" name="lv" id="lv3" value="3"><label for="lv3">Hard</label>
+            </div>
+            <button class="btn c1" id="goBot" type="button">Play</button>
+          </div>
+        </div>
+        <div class="card">
+          <b>Two players, one screen</b>
+          <p>On a phone or tablet, each player drags on their own half. On a laptop, cyan uses the mouse and magenta uses <kbd style="font:inherit">W A S D</kbd>.</p>
+          <div class="row"><button class="btn" id="goLocal" type="button">Play</button></div>
+        </div>
+        <div class="card">
+          <b>Online</b>
+          <p>Each player on their own phone or laptop, anywhere with internet. One creates a game and sends an invite link or 4-letter code.</p>
+          <div class="row"><button class="btn" id="goOnline" type="button">Set up</button></div>
+        </div>
+      </section>
+
+      <!-- Online setup -->
+      <section class="panel" id="pOnline" hidden>
+        <h2>Online</h2>
+        <p class="muted" id="onAvail" hidden>Online play needs an internet connection.</p>
+        <div id="onForms" hidden style="display:grid;gap:12px">
+          <div class="field"><label for="oName">Your name</label><input type="text" id="oName" maxlength="14" placeholder="Your name" autocomplete="off"></div>
+          <div class="card"><b>Start a game</b><p>You play cyan, at the bottom.</p><div class="row"><button class="btn c1" id="create" type="button">Create game</button></div></div>
+          <div class="card">
+            <b>Join a game</b>
+            <div class="field"><label for="jCode">Game code</label><input type="text" id="jCode" maxlength="6" placeholder="e.g. K7QF" autocomplete="off" spellcheck="false" style="letter-spacing:.15em;text-transform:uppercase"></div>
+            <div class="row"><button class="btn" id="join" type="button">Join game</button></div>
+          </div>
+        </div>
+        <p class="muted" id="onStatus" role="status" hidden></p>
+        <p class="err" id="onErr" role="alert" hidden></p>
+        <div class="row"><button class="btn ghost" type="button" id="onBack">Back</button></div>
+      </section>
+
+      <!-- Lobby -->
+      <section class="panel" id="pLobby" hidden>
+        <div id="lobbyHost">
+          <p class="muted">Your game code</p>
+          <div class="row"><span class="code" id="lobbyCode">----</span><button class="btn ghost" id="copyCode" type="button">Copy</button></div>
+          <p style="margin-top:8px">Send your friend the invite link, or tell them the code. They open this app, choose <b>Online</b>, then <b>Join game</b>.</p>
+          <div class="row" style="margin-top:8px"><button class="btn c1" id="copyLink" type="button">Copy invite link</button><button class="btn ghost" id="shareLink" type="button" hidden>Share…</button></div>
+          <p class="muted" style="margin-top:6px">Waiting for your opponent…</p>
+        </div>
+        <div id="lobbyGuest" hidden>
+          <p><b id="lobbyFind">Looking for game…</b></p>
+          <p class="muted" id="lobbyHint">Keep this page open. The match starts as soon as the host is found.</p>
+        </div>
+        <div class="row"><button class="btn ghost" id="cancelLobby" type="button">Cancel</button></div>
+      </section>
+
+      <!-- Playing -->
+      <section class="panel" id="pPlay" hidden>
+        <p class="keys" id="ctlHint">Move your mallet with the mouse or your finger.</p>
+        <p class="err" id="away" hidden></p>
+        <div class="row">
+          <button class="btn ghost" id="pauseBtn" type="button">Pause</button>
+          <button class="btn ghost" id="leave" type="button">Leave game</button>
+          <label class="check"><input type="checkbox" id="snd" checked> Sound</label>
+        </div>
+      </section>
+
+      <!-- Game over -->
+      <section class="panel" id="pOver" hidden>
+        <h2 id="overTitle">Game over</h2>
+        <p class="muted" id="overText"></p>
+        <div class="row"><button class="btn c1" id="again" type="button">Play again</button><button class="btn ghost" id="leave2" type="button">Main menu</button></div>
+      </section>
+
+      <details class="rules">
+        <summary>Rules and power-ups</summary>
+        <p>Keep your mallet on your own half. Hit the puck into your opponent's goal; the first player to 7 wins. The puck bounces off the walls and mallets, and a fast-moving mallet hits harder.</p>
+        <ul class="legend">
+          <li><i style="background:var(--ice);box-shadow:0 0 8px var(--ice)"></i><span><b>Freeze</b>: your opponent's mallet moves at half speed for 5 seconds.</span></li>
+          <li><i style="background:var(--lime);box-shadow:0 0 8px var(--lime)"></i><span><b>Multi-puck</b>: a second puck joins the game (up to three at once).</span></li>
+          <li><i style="background:var(--amber);box-shadow:0 0 8px var(--amber)"></i><span><b>Shield</b>: a barrier covers your goal and blocks one shot (or lasts 10 seconds).</span></li>
+        </ul>
+        <p>Power-ups appear in the centre zone. Whoever touched the puck last gets the power-up when the puck hits it.</p>
+        <p><b>Install as an app:</b> in Chrome or Edge, use the <b>Install app</b> button (or the install icon in the address bar). On an iPhone or iPad, open this page in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
+        <p><b>Online play</b> connects the two devices directly. A free matchmaking service only introduces them. Some school or office networks block direct connections; if a game won't connect, try another Wi-Fi network or mobile data.</p>
+      </details>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+'use strict';
+/* ---------------- Constants ---------------- */
+const W = 600, H = 960;               // rink units; player 0 (cyan) defends the bottom goal, player 1 (magenta) the top
+const PR = 24, MR = 40;               // puck radius, mallet radius
+const GW = 210, GX0 = (W - GW) / 2, GX1 = GX0 + GW;
+const WIN = 7, STEP = 1 / 120;
+const MALLET_V = 2600, PUCK_MAX = 2100, E_WALL = 0.9, E_MALLET = 0.92;
+const PU_R = 28, PU_TYPES = ['freeze', 'multi', 'shield'];
+const COL = ['#29f0ff', '#ff3ccf'];
+const PU_COL = { freeze:'#8fe3ff', multi:'#b8ff3c', shield:'#ffc23d' };
+const PU_NAME = { freeze:'FREEZE', multi:'MULTI-PUCK', shield:'SHIELD' };
+const AI_SPEED = [0, 0.36, 0.58, 0.86];
+const $ = id => document.getElementById(id);
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const cleanName = s => typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, 14) : '';
+
+/* ---------------- Game model ---------------- */
+function newGame(names){
+  return {
+    phase:'countdown', t:3, sc:[0, 0], pucks:[], pu:null, puTimer:rand(5, 8), fz:[0, 0], sh:[0, 0], names, winner:null, serveTo:Math.random() < 0.5 ? 0 : 1,
+    pd:[{ x:W / 2, y:H - 130, vx:0, vy:0, tx:W / 2, ty:H - 130, sp:1 }, { x:W / 2, y:130, vx:0, vy:0, tx:W / 2, ty:130, sp:1 }],
+    evN:0, events:[], time:0,
+  };
+}
+function emit(g, k, p, extra){ g.evN++; g.events.push({ n:g.evN, k, p, x:extra }); if (g.events.length > 12) g.events.shift(); }
+function serve(g, toward){
+  g.pucks = [{ x:W / 2 + rand(-40, 40), y:H / 2, vx:rand(-90, 90), vy:toward === 0 ? 240 : -240, last:-1, trail:[] }];
+  emit(g, 'serve', toward);
+}
+function clampMallet(i, x, y){
+  const mx = clamp(x, MR, W - MR);
+  const my = i === 0 ? clamp(y, H / 2 + MR * 0.25, H - MR) : clamp(y, MR, H / 2 - MR * 0.25);
+  return [mx, my];
+}
+function moveMallet(m, i, fz, dt){
+  const [tx, ty] = clampMallet(i, m.tx, m.ty);
+  const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy);
+  const maxStep = MALLET_V * (m.sp || 1) * (fz > 0 ? 0.5 : 1) * dt;
+  const px = m.x, py = m.y;
+  if (d <= maxStep){ m.x = tx; m.y = ty; } else { m.x += dx / d * maxStep; m.y += dy / d * maxStep; }
+  m.vx = (m.x - px) / dt; m.vy = (m.y - py) / dt;
+  return [px, py];
+}
+function step(g, dt){
+  g.time += dt;
+  if (g.phase === 'countdown'){
+    g.t -= dt;
+    if (g.t <= 0){ g.phase = 'play'; serve(g, g.serveTo); }
+  } else if (g.phase === 'goal'){
+    g.t -= dt;
+    if (g.t <= 0){ g.phase = 'play'; serve(g, g.serveTo); }
+  }
+  for (let i = 0; i < 2; i++){ if (g.fz[i] > 0) g.fz[i] = Math.max(0, g.fz[i] - dt); if (g.sh[i] > 0) g.sh[i] = Math.max(0, g.sh[i] - dt); }
+  const prev = [moveMallet(g.pd[0], 0, g.fz[0], dt), moveMallet(g.pd[1], 1, g.fz[1], dt)];
+  if (g.phase !== 'play' && g.phase !== 'goal') return;
+
+  // power-ups
+  if (!g.pu && g.phase === 'play'){
+    g.puTimer -= dt;
+    if (g.puTimer <= 0){
+      for (let k = 0; k < 20; k++){
+        const p = { type:PU_TYPES[Math.floor(Math.random() * 3)], x:rand(110, W - 110), y:H / 2 + rand(-130, 130), life:10 };
+        if (g.pucks.every(q => Math.hypot(q.x - p.x, q.y - p.y) > PR + PU_R + 30)){ g.pu = p; emit(g, 'spawn', -1); break; }
+      }
+      g.puTimer = rand(1, 2);
+    }
+  } else if (g.pu){
+    g.pu.life -= dt;
+    if (g.pu.life <= 0){ g.pu = null; g.puTimer = rand(6, 9); }
+  }
+
+  // pucks with continuous (sub-stepped) collisions
+  let maxMove = 0;
+  for (const p of g.pucks) maxMove = Math.max(maxMove, Math.hypot(p.vx, p.vy) * dt);
+  for (let i = 0; i < 2; i++) maxMove = Math.max(maxMove, Math.hypot(g.pd[i].x - prev[i][0], g.pd[i].y - prev[i][1]));
+  const n = Math.min(16, Math.max(1, Math.ceil(maxMove / (PR * 0.35))));
+  const h = dt / n;
+  for (let s = 1; s <= n && g.pucks.length; s++){
+    const f = s / n;
+    const mx = [prev[0][0] + (g.pd[0].x - prev[0][0]) * f, prev[1][0] + (g.pd[1].x - prev[1][0]) * f];
+    const my = [prev[0][1] + (g.pd[0].y - prev[0][1]) * f, prev[1][1] + (g.pd[1].y - prev[1][1]) * f];
+    for (let k = g.pucks.length - 1; k >= 0; k--){
+      const p = g.pucks[k];
+      p.x += p.vx * h; p.y += p.vy * h;
+      // mallets (alternate the order so a puck squeezed between both mallets favours neither side)
+      g.flip = !g.flip;
+      for (const i of g.flip ? [0, 1] : [1, 0]){
+        const dx = p.x - mx[i], dy = p.y - my[i], d = Math.hypot(dx, dy), min = PR + MR;
+        if (d < min){
+          const nx = d > 1e-6 ? dx / d : 0, ny = d > 1e-6 ? dy / d : (i === 0 ? -1 : 1);
+          p.x = mx[i] + nx * min; p.y = my[i] + ny * min;
+          const rvx = p.vx - g.pd[i].vx, rvy = p.vy - g.pd[i].vy, vn = rvx * nx + rvy * ny;
+          if (vn < 0){
+            p.vx -= (1 + E_MALLET) * vn * nx; p.vy -= (1 + E_MALLET) * vn * ny;
+            p.last = i; emit(g, 'hit', i, Math.round(-vn));
+          }
+        }
+      }
+      // side walls
+      if (p.x < PR){ p.x = PR; if (p.vx < 0){ p.vx = -p.vx * E_WALL; emit(g, 'wall', -1); } }
+      if (p.x > W - PR){ p.x = W - PR; if (p.vx > 0){ p.vx = -p.vx * E_WALL; emit(g, 'wall', -1); } }
+      // end walls, goal mouths, shields, posts
+      const inMouth = p.x > GX0 + 4 && p.x < GX1 - 4;
+      for (const end of [0, 1]){                         // end 0 = top wall (player 1's goal), end 1 = bottom wall (player 0's goal)
+        const owner = end === 0 ? 1 : 0;
+        const y0 = end === 0 ? 0 : H, sgn = end === 0 ? 1 : -1;   // sgn points into the rink
+        const depth = (p.y - y0) * sgn;                  // distance from the goal line into the rink
+        if (depth < 0 && inMouth) p.x = clamp(p.x, GX0 + PR * 0.6, GX1 - PR * 0.6);   // inside the goal pocket
+        if (depth < PR){
+          if (inMouth && g.sh[owner] > 0 && p.vy * sgn < 0 && depth > -PR){
+            p.y = y0 + sgn * PR; p.vy = -p.vy * E_WALL; g.sh[owner] = 0; emit(g, 'shield', owner);
+          } else if (!inMouth && depth >= -PR * 0.2){
+            p.y = y0 + sgn * PR; if (p.vy * sgn < 0){ p.vy = -p.vy * E_WALL; emit(g, 'wall', -1); }
+          }
+        }
+        for (const gx of [GX0, GX1]){
+          const dx = p.x - gx, dy = p.y - y0, d = Math.hypot(dx, dy);
+          if (d < PR && d > 1e-6){
+            const nx = dx / d, ny = dy / d; p.x = gx + nx * PR; p.y = y0 + ny * PR;
+            const vn = p.vx * nx + p.vy * ny; if (vn < 0){ p.vx -= 2 * vn * nx * E_WALL; p.vy -= 2 * vn * ny * E_WALL; emit(g, 'wall', -1); }
+          }
+        }
+      }
+      // goals
+      if (p.y < -PR * 1.1 || p.y > H + PR * 1.1){
+        const scorer = p.y < 0 ? 0 : 1;
+        g.pucks.splice(k, 1);
+        if (g.phase === 'play' || g.phase === 'goal'){
+          g.sc[scorer]++;
+          emit(g, 'goal', scorer);
+          if (g.sc[scorer] >= WIN){ g.phase = 'over'; g.winner = scorer; g.pucks = []; g.pu = null; emit(g, 'win', scorer); return; }
+          if (!g.pucks.length){ g.phase = 'goal'; g.t = 1.3; g.serveTo = 1 - scorer; g.pu = null; g.puTimer = rand(5, 8); }
+        }
+        continue;
+      }
+      // power-up pickup
+      if (g.pu && Math.hypot(p.x - g.pu.x, p.y - g.pu.y) < PR + PU_R && p.last >= 0){
+        applyPowerUp(g, g.pu, p.last);
+        g.pu = null; g.puTimer = rand(7, 11);
+      }
+    }
+    // puck vs puck
+    for (let a = 0; a < g.pucks.length; a++) for (let b = a + 1; b < g.pucks.length; b++){
+      const p = g.pucks[a], q = g.pucks[b], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy);
+      if (d < PR * 2 && d > 1e-6){
+        const nx = dx / d, ny = dy / d, ov = (PR * 2 - d) / 2;
+        p.x -= nx * ov; p.y -= ny * ov; q.x += nx * ov; q.y += ny * ov;
+        const vn = (q.vx - p.vx) * nx + (q.vy - p.vy) * ny;
+        if (vn < 0){ p.vx += vn * nx; p.vy += vn * ny; q.vx -= vn * nx; q.vy -= vn * ny; emit(g, 'wall', -1); }
+      }
+    }
+  }
+  for (const p of g.pucks){
+    const damp = Math.exp(-0.16 * dt); p.vx *= damp; p.vy *= damp;
+    const sp = Math.hypot(p.vx, p.vy); if (sp > PUCK_MAX){ p.vx *= PUCK_MAX / sp; p.vy *= PUCK_MAX / sp; }
+  }
+}
+function applyPowerUp(g, pu, who){
+  if (pu.type === 'freeze') g.fz[1 - who] = 5;
+  else if (pu.type === 'shield') g.sh[who] = 10;
+  else if (pu.type === 'multi' && g.pucks.length < 3){
+    g.pucks.push({ x:pu.x, y:pu.y, vx:rand(-260, 260), vy:who === 0 ? -420 : 420, last:who, trail:[] });
+  }
+  emit(g, 'pu', who, pu.type);
+}
+
+/* ---------------- Computer player ---------------- */
+function aiThink(g, i, level){
+  const me = g.pd[i], sgn = i === 1 ? 1 : -1, own = i === 1 ? 0 : H, opp = i === 1 ? H : 0;
+  const ly = y => i === 1 ? y : H - y;                       // distance from own goal line
+  me.sp = AI_SPEED[level];
+  let pk = null, best = Infinity;
+  for (const p of g.pucks){
+    const threat = ly(p.y) - (p.vy * sgn < 0 ? 200 : 0);
+    if (threat < best){ best = threat; pk = p; }
+  }
+  const home = [W / 2, own + sgn * 120];
+  if (!pk || g.phase !== 'play'){ me.tx = home[0]; me.ty = home[1]; return; }
+  const jitter = level === 1 ? Math.sin(g.time * 1.9 + i) * 55 : level === 2 ? Math.sin(g.time * 1.3 + i) * 18 : 0;
+  if (ly(pk.y) < H / 2 + 20 && ly(pk.y) > ly(me.y) - 6){
+    // attack: get behind the puck on the line to the opponent's goal and drive through it
+    const ax = W / 2 + (level === 3 ? rand(-60, 60) : 0), dx = ax - pk.x, dy = opp - pk.y, d = Math.hypot(dx, dy) || 1;
+    const ux = dx / d, uy = dy / d, close = Math.hypot(me.x - pk.x, me.y - pk.y) < PR + MR + 50;
+    me.tx = pk.x - ux * (PR + MR - (close ? 60 : 4)) + jitter;
+    me.ty = pk.y - uy * (PR + MR - (close ? 60 : 4));
+  } else if (ly(pk.y) <= ly(me.y) - 6){
+    // the puck slipped behind: get back on the goal side of it
+    me.tx = pk.x + (pk.x < W / 2 ? 1 : -1) * (PR + MR);
+    me.ty = pk.y - sgn * (PR + MR + 10);
+  } else {
+    // defend: line up with where the puck will cross our guard line
+    let x = pk.x;
+    if (pk.vy * sgn < 0 && level >= 2){
+      const t = (ly(pk.y) - 120) / Math.abs(pk.vy);
+      x = pk.x + pk.vx * Math.min(t, 1.5);
+      const span = W - 2 * PR; let u = (x - PR) % (2 * span); if (u < 0) u += 2 * span; x = PR + (u > span ? 2 * span - u : u);
+    }
+    me.tx = clamp(x, GX0 - 20, GX1 + 20) + jitter;
+    me.ty = own + sgn * 120;
+  }
+}
+
+/* ---------------- Session ---------------- */
+let mode = 'demo';                // demo | bot | local | online
+let role = null;                  // host | guest | spectator
+let level = 2, g = newGame(['Cyan', 'Magenta']), paused = false;
+g.phase = 'play'; serve(g, 0);
+let room = null, groom = null, unsubs = [], code = null, myNick = '', mePeer = null;
+let oppAway = false, hostMissing = false, connected = true, findTimer = 0, guestPeer = null;
+let remote = null, remoteAt = 0, lastEvSeen = 0;               // guest's view of the host's game
+const guestMallet = { x:W / 2, y:130, vx:0, vy:0, tx:W / 2, ty:130, sp:1 };
+const smooth = { pd0:{ x:W / 2, y:H - 130 } };
+const keys = new Set();
+
+/* ---------------- Storage ---------------- */
+const KEY = 'neon-air-hockey-v1';
+function loadPrefs(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+function savePrefs(p){ try { localStorage.setItem(KEY, JSON.stringify({ ...loadPrefs(), ...p })); } catch (e) {} }
+
+/* ---------------- Sound ---------------- */
+let actx = null, lastHitSound = 0;
+function tone(f0, f1, dur, type, vol, delay){
+  if (!$('snd').checked) return;
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const t = actx.currentTime + (delay || 0), o = actx.createOscillator(), gn = actx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    o.connect(gn); gn.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
+  } catch (e) {}
+}
+function playEvent(ev){
+  const now = performance.now();
+  if (ev.k === 'hit'){ if (now - lastHitSound > 45){ lastHitSound = now; tone(320 + Math.min(600, (ev.x || 0) * 0.35), 160, 0.08, 'square', 0.045); } }
+  else if (ev.k === 'wall'){ if (now - lastHitSound > 45){ lastHitSound = now; tone(210, 140, 0.06, 'triangle', 0.05); } }
+  else if (ev.k === 'goal'){ [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.12, 'square', 0.045, i * 0.09)); flash(ev.p === mySide() || mode === 'local' || mode === 'demo' ? 'GOAL!' : 'GOAL!', COL[ev.p], 1300); }
+  else if (ev.k === 'pu'){ tone(300, 1100, 0.28, 'sawtooth', 0.035); flash(PU_NAME[ev.x] || 'POWER-UP', PU_COL[ev.x] || '#fff', 1100); }
+  else if (ev.k === 'shield'){ tone(180, 420, 0.16, 'square', 0.05); flash('BLOCKED!', PU_COL.shield, 900); }
+  else if (ev.k === 'spawn'){ tone(700, 900, 0.08, 'sine', 0.03); }
+  else if (ev.k === 'win'){ [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, 0.18, 'triangle', 0.05, i * 0.12)); }
+}
+let flashMsg = null;
+function flash(text, color, ms){ if (mode === 'demo') return; flashMsg = { text, color, until:performance.now() + ms, start:performance.now() }; }
+
+/* ---------------- Views ---------------- */
+function mySide(){ if (mode === 'online') return role === 'guest' ? 1 : role === 'host' ? 0 : -1; if (mode === 'bot') return 0; return -1; }
+function flipped(){ return mode === 'online' && role === 'guest'; }
+function viewState(){
+  if (mode !== 'online' || role === 'host') return g;
+  return remoteView();
+}
+// The guest renders the host's game, extrapolating pucks between updates and showing its own mallet locally.
+function remoteView(){
+  const r = remote;
+  if (!r) return null;
+  const age = Math.min(0.12, (performance.now() - remoteAt) / 1000);
+  const pucks = r.pk.map(p => ({ x:clamp(p[0] + p[2] * age, PR, W - PR), y:p[1] + p[3] * age, vx:p[2], vy:p[3], trail:[] }));
+  const a = 1 - Math.pow(0.0005, 1 / 60);
+  smooth.pd0.x += (r.pd[0][0] - smooth.pd0.x) * Math.min(1, a * 8); smooth.pd0.y += (r.pd[0][1] - smooth.pd0.y) * Math.min(1, a * 8);
+  const pd = [{ x:smooth.pd0.x, y:smooth.pd0.y }, role === 'guest' ? guestMallet : { x:r.pd[1][0], y:r.pd[1][1] }];
+  return { phase:r.ph, t:r.t, sc:r.sc, pucks, pu:r.pu ? { type:PU_TYPES[r.pu[0]], x:r.pu[1], y:r.pu[2], life:r.pu[3] } : null,
+    fz:r.fz, sh:r.sh, names:r.nm, winner:r.w, pd, time:performance.now() / 1000 };
+}
+
+/* ---------------- Rendering ---------------- */
+const cv = $('rink'), ctx = cv.getContext('2d');
+let cssW = 300, cssH = 480, dpr = 1;
+const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+const isNarrow = () => window.innerWidth < 820;
+let landscape = false;
+const rinkScale = () => landscape ? cssH / W : cssW / W;
+function sizeRink(){
+  const narrow = isNarrow(), playing = mode !== 'demo';
+  // the frame may be taller than the phone screen, so never size from more than the real screen height
+  // On a laptop the page sits inside the browser and Claude's own bars, so leave room for them.
+  const sh = (window.screen && window.screen.availHeight) || 100000;
+  const vh = Math.min(window.innerHeight || 800, coarse ? sh : sh - 170);
+  const maxH = narrow ? (playing ? vh - 120 : vh * 0.66) : (playing ? vh - 30 : vh - 150);
+  const avail = narrow ? Math.min(window.innerWidth - 32, 560) : Math.min(560, window.innerWidth - 32 - 360);
+  landscape = !narrow;
+  let ww, hh;
+  if (landscape){
+    // laptops and desktops: lay the rink on its side so it uses the wide screen
+    const availW = Math.min(1100, window.innerWidth - 32 - 360);
+    hh = Math.max(240, maxH); ww = hh * H / W;
+    if (ww > availW){ ww = Math.max(380, availW); hh = ww * W / H; }
+  } else {
+    hh = Math.max(300, maxH); ww = hh * W / H;
+    if (ww > avail){ ww = Math.max(200, avail); hh = ww * H / W; }
+  }
+  const nw = Math.floor(ww), nh = Math.floor(hh), nd = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
+  if (nw === cssW && nh === cssH && nd === dpr && bgFor) return;
+  cssW = nw; cssH = nh; dpr = nd;
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  bgFor = '';
+}
+// The rink markings never move, so they are drawn once into their own canvas and copied each frame.
+const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+let bgFor = '';
+function drawBackground(){
+  const key = cssW + 'x' + cssH + '@' + dpr + (flipped() ? 'f' : '') + (landscape ? 'L' : '');
+  if (key === bgFor) return;
+  bgFor = key;
+  bg.width = cv.width; bg.height = cv.height;
+  const k = rinkScale(), c = bgx;
+  c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
+  if (landscape) c.transform(0, 1, -1, 0, H, 0);          // rink y runs left to right; your goal on the left
+  if (flipped()){ c.translate(W, H); c.rotate(Math.PI); }
+  const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
+  c.fillStyle = '#0a0918'; rr(0, 0, W, H, 34); c.fill();
+  c.save(); rr(0, 0, W, H, 34); c.clip();
+  c.strokeStyle = 'rgba(255,255,255,0.035)'; c.lineWidth = 1;
+  c.beginPath(); for (let x = 60; x < W; x += 60){ c.moveTo(x, 0); c.lineTo(x, H); } for (let y = 60; y < H; y += 60){ c.moveTo(0, y); c.lineTo(W, y); } c.stroke();
+  c.strokeStyle = 'rgba(184,255,60,0.16)'; c.lineWidth = 2; c.setLineDash([4, 10]); rr(80, H / 2 - 160, W - 160, 320, 24); c.stroke(); c.setLineDash([]);
+  c.strokeStyle = 'rgba(160,150,255,0.45)'; c.lineWidth = 3; c.setLineDash([16, 14]);
+  c.beginPath(); c.moveTo(0, H / 2); c.lineTo(W, H / 2); c.stroke(); c.setLineDash([]);
+  c.beginPath(); c.arc(W / 2, H / 2, 92, 0, Math.PI * 2); c.stroke();
+  for (const [i, y0, a0, a1] of [[1, 0, 0, Math.PI], [0, H, Math.PI, Math.PI * 2]]){
+    c.strokeStyle = COL[i]; c.globalAlpha = 0.45; c.lineWidth = 3; c.beginPath(); c.arc(W / 2, y0, 128, a0, a1); c.stroke(); c.globalAlpha = 1;
+  }
+  c.restore();
+  c.shadowColor = '#6a5cff'; c.shadowBlur = 22 * dpr; c.strokeStyle = '#6a5cff'; c.lineWidth = 6; rr(3, 3, W - 6, H - 6, 32); c.stroke();
+  for (const [i, y] of [[1, 2], [0, H - 2]]){
+    c.shadowColor = COL[i]; c.shadowBlur = 26 * dpr; c.strokeStyle = COL[i]; c.lineWidth = 10; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(GX0, y); c.lineTo(GX1, y); c.stroke();
+    c.shadowBlur = 0; c.fillStyle = '#06050d'; c.fillRect(GX0 + 6, i === 1 ? -2 : H - 2, GW - 12, 4);
+  }
+  c.shadowBlur = 0;
+}
+const trails = new Map();
+function glow(color, blur){ ctx.shadowColor = color; ctx.shadowBlur = (reduceMotion || coarse ? blur * 0.5 : blur) * dpr; }
+function noGlow(){ ctx.shadowBlur = 0; }
+function render(){
+  const vs = viewState();
+  const k = rinkScale(), S = Math.min(cssW, cssH);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#06050d'; ctx.fillRect(0, 0, cssW, cssH);
+  if (!vs) { drawText('CONNECTING…', cssW / 2, cssH / 2, 20, '#9a94c4'); return; }
+  drawBackground();
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(bg, 0, 0); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.save();
+  ctx.scale(k, k);
+  if (landscape) ctx.transform(0, 1, -1, 0, H, 0);
+  if (flipped()){ ctx.translate(W, H); ctx.rotate(Math.PI); }
+  const now = performance.now() / 1000;
+  // shields
+  for (const i of [0, 1]){
+    if (vs.sh[i] > 0){
+      const y = i === 1 ? 18 : H - 18, a = vs.sh[i] < 2 ? 0.4 + 0.6 * Math.abs(Math.sin(now * 10)) : 1;
+      ctx.globalAlpha = a; glow(PU_COL.shield, 28); ctx.strokeStyle = PU_COL.shield; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(GX0 - 10, y); ctx.lineTo(GX1 + 10, y); ctx.stroke(); noGlow();
+      ctx.strokeStyle = 'rgba(255,194,61,0.35)'; ctx.lineWidth = 2;
+      ctx.beginPath(); for (let x = GX0; x <= GX1; x += 24){ ctx.moveTo(x, y - 12); ctx.lineTo(x + 12, y + 12); } ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+  }
+  // power-up
+  if (vs.pu) drawPowerUp(vs.pu, now);
+  // puck trails and pucks
+  vs.pucks.forEach((p, idx) => {
+    let tr = trails.get(idx); if (!tr){ tr = []; trails.set(idx, tr); }
+    tr.push([p.x, p.y]); if (tr.length > 9) tr.shift();
+    for (let j = 0; j < tr.length - 1; j++){
+      ctx.globalAlpha = (j / tr.length) * 0.35; ctx.fillStyle = '#c9c4ff';
+      ctx.beginPath(); ctx.arc(tr[j][0], tr[j][1], PR * (0.4 + 0.6 * j / tr.length), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    glow('#ffffff', 24); ctx.fillStyle = '#f6f4ff'; ctx.beginPath(); ctx.arc(p.x, p.y, PR, 0, Math.PI * 2); ctx.fill(); noGlow();
+    ctx.strokeStyle = '#7a72d8'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(p.x, p.y, PR - 7, 0, Math.PI * 2); ctx.stroke();
+  });
+  for (const key of [...trails.keys()]) if (key >= vs.pucks.length) trails.delete(key);
+  // mallets
+  for (const i of [0, 1]) drawMallet(vs.pd[i], i, vs.fz[i] > 0, now);
+  ctx.restore();
+
+  // screen-space text: score watermarks, countdowns, flashes
+  const topIdx = flipped() ? 0 : 1, botIdx = 1 - topIdx;
+  ctx.globalAlpha = 0.09;
+  if (landscape){
+    drawText(String(vs.sc[topIdx]), cssW * 0.75, cssH / 2, S * 0.5, COL[topIdx]);
+    drawText(String(vs.sc[botIdx]), cssW * 0.25, cssH / 2, S * 0.5, COL[botIdx]);
+  } else {
+    drawText(String(vs.sc[topIdx]), cssW / 2, cssH * 0.25, S * 0.32, COL[topIdx]);
+    drawText(String(vs.sc[botIdx]), cssW / 2, cssH * 0.75, S * 0.32, COL[botIdx]);
+  }
+  ctx.globalAlpha = 1;
+  if (mode !== 'demo'){
+    if (vs.phase === 'countdown') drawText(String(Math.max(1, Math.ceil(vs.t))), cssW / 2, cssH / 2, S * 0.22, '#ffffff', true);
+    if (vs.phase === 'wait') drawText('WAITING FOR OPPONENT', cssW / 2, cssH / 2, Math.min(22, S * 0.05), '#ece9ff', true);
+    if (vs.phase === 'over' && vs.winner !== null){
+      const nm = (vs.names[vs.winner] || '').toUpperCase();
+      drawText(nm + ' WINS', cssW / 2, cssH / 2 - 10, Math.min(40, S * 0.09), COL[vs.winner], true);
+      drawText(vs.sc[0] + ' – ' + vs.sc[1], cssW / 2, cssH / 2 + S * 0.08, Math.min(26, S * 0.06), '#ece9ff');
+    }
+    if (paused && mode !== 'online') drawText('PAUSED', cssW / 2, cssH / 2, Math.min(40, S * 0.1), '#ece9ff', true);
+  }
+  if (flashMsg){
+    const t = performance.now();
+    if (t > flashMsg.until) flashMsg = null;
+    else {
+      const age = (t - flashMsg.start) / 1000, sc = reduceMotion ? 1 : 1 + Math.max(0, 0.35 - age) * 1.4;
+      ctx.globalAlpha = Math.min(1, (flashMsg.until - t) / 250);
+      drawText(flashMsg.text, cssW / 2, cssH / 2, Math.min(46, S * 0.1) * sc, flashMsg.color, true);
+      ctx.globalAlpha = 1;
+    }
+  }
+  if (mode === 'demo'){
+    ctx.fillStyle = 'rgba(6,5,13,0.45)'; ctx.fillRect(0, cssH / 2 - 34, cssW, 68);
+    drawText('CHOOSE A GAME', cssW / 2, cssH / 2, Math.min(24, S * 0.065), '#ffffff', true);
+  }
+}
+function roundRect(x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function drawText(text, x, y, size, color, glowy){
+  ctx.font = `400 ${size}px Audiowide, "Segoe UI", sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  if (glowy){ glow(color, 22); }
+  ctx.fillStyle = color; ctx.fillText(text, x, y); noGlow();
+}
+function drawMallet(m, i, frozen, now){
+  const c = COL[i];
+  glow(c, 30);
+  ctx.fillStyle = '#0d0b1d'; ctx.beginPath(); ctx.arc(m.x, m.y, MR, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = c; ctx.lineWidth = 7; ctx.beginPath(); ctx.arc(m.x, m.y, MR - 4, 0, Math.PI * 2); ctx.stroke();
+  noGlow();
+  ctx.strokeStyle = c; ctx.globalAlpha = 0.55; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(m.x, m.y, MR - 15, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+  glow(c, 16); ctx.fillStyle = c; ctx.beginPath(); ctx.arc(m.x, m.y, 12, 0, Math.PI * 2); ctx.fill(); noGlow();
+  if (frozen){
+    ctx.globalAlpha = 0.85; glow(PU_COL.freeze, 18); ctx.strokeStyle = PU_COL.freeze; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(m.x, m.y, MR + 6, 0, Math.PI * 2); ctx.stroke(); noGlow();
+    for (let a = 0; a < 6; a++){ const ang = a * Math.PI / 3 + now * 0.6; flake(m.x + Math.cos(ang) * (MR + 14), m.y + Math.sin(ang) * (MR + 14), 7); }
+    ctx.globalAlpha = 1;
+  }
+}
+function flake(x, y, r){
+  ctx.strokeStyle = PU_COL.freeze; ctx.lineWidth = 2; ctx.beginPath();
+  for (let a = 0; a < 3; a++){ const ang = a * Math.PI / 3; ctx.moveTo(x - Math.cos(ang) * r, y - Math.sin(ang) * r); ctx.lineTo(x + Math.cos(ang) * r, y + Math.sin(ang) * r); }
+  ctx.stroke();
+}
+function drawPowerUp(pu, now){
+  const c = PU_COL[pu.type], pulse = reduceMotion ? 1 : 1 + Math.sin(now * 6) * 0.06;
+  const fade = pu.life !== undefined && pu.life < 2 ? 0.35 + 0.65 * Math.abs(Math.sin(now * 8)) : 1;
+  ctx.save(); ctx.translate(pu.x, pu.y); ctx.scale(pulse, pulse); ctx.globalAlpha = fade;
+  glow(c, 26); ctx.strokeStyle = c; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(0, 0, PU_R, 0, Math.PI * 2); ctx.stroke();
+  ctx.rotate(reduceMotion ? 0 : now * 1.4);
+  ctx.setLineDash([6, 8]); ctx.beginPath(); ctx.arc(0, 0, PU_R + 9, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+  ctx.rotate(reduceMotion ? 0 : -now * 1.4);
+  ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 3.5;
+  if (pu.type === 'freeze'){
+    ctx.beginPath();
+    for (let a = 0; a < 3; a++){
+      const ang = a * Math.PI / 3, cx = Math.cos(ang), sy = Math.sin(ang);
+      ctx.moveTo(-cx * 16, -sy * 16); ctx.lineTo(cx * 16, sy * 16);
+      for (const s of [-1, 1]){ const bx = s * cx * 10, by = s * sy * 10; ctx.moveTo(bx, by); ctx.lineTo(bx + s * Math.cos(ang + 0.7) * 6, by + s * Math.sin(ang + 0.7) * 6); ctx.moveTo(bx, by); ctx.lineTo(bx + s * Math.cos(ang - 0.7) * 6, by + s * Math.sin(ang - 0.7) * 6); }
+    }
+    ctx.stroke();
+  } else if (pu.type === 'multi'){
+    ctx.beginPath(); ctx.arc(-7, 4, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(8, -5, 9, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(13, -10); ctx.lineTo(11, 5); ctx.quadraticCurveTo(7, 13, 0, 17); ctx.quadraticCurveTo(-7, 13, -11, 5); ctx.lineTo(-13, -10); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(0, 9); ctx.stroke();
+  }
+  noGlow(); ctx.restore();
+}
+
+/* ---------------- HUD & panels ---------------- */
+let hudKey = '';
+function updateHud(){
+  const vs = viewState();
+  const names = vs ? vs.names : g.names, sc = vs ? vs.sc : [0, 0];
+  const fx = i => {
+    if (!vs || mode === 'demo') return '';
+    const parts = [];
+    if (vs.fz[i] > 0) parts.push(`Frozen ${Math.ceil(vs.fz[i])}s`);
+    if (vs.sh[i] > 0) parts.push(`Shield ${Math.ceil(vs.sh[i])}s`);
+    return parts.join(' · ');
+  };
+  const key = [names[0], names[1], sc[0], sc[1], fx(0), fx(1), mode].join('|');
+  if (key === hudKey) return;
+  hudKey = key;
+  for (const i of [0, 1]){ $('nm' + i).textContent = names[i]; $('pt' + i).textContent = mode === 'demo' ? 0 : sc[i]; $('fx' + i).textContent = fx(i); }
+}
+function showPanel(id){ for (const p of ['pMenu', 'pOnline', 'pLobby', 'pPlay', 'pOver']) $(p).hidden = p !== id; }
+let menuScreen = 'menu';
+function updatePanels(){
+  const pill = $('conn'); pill.hidden = mode !== 'online';
+  if (mode === 'online'){ pill.className = 'pill ' + (connected ? 'on' : 'off'); $('connText').textContent = (connected ? 'Online' : 'Reconnecting…') + (code ? ' · ' + code : '') + (role === 'spectator' ? ' · watching' : ''); }
+  cv.classList.toggle('menu', mode === 'demo');
+  if (mode === 'demo'){ showPanel(menuScreen === 'online' ? 'pOnline' : 'pMenu'); return; }
+  const vs = viewState();
+  if (mode === 'online' && role === 'host' && g.phase === 'wait'){ showPanel('pLobby'); $('lobbyHost').hidden = false; $('lobbyGuest').hidden = true; $('lobbyCode').textContent = code; return; }
+  if (mode === 'online' && role !== 'host' && !remote){ showPanel('pLobby'); $('lobbyHost').hidden = true; $('lobbyGuest').hidden = false; $('lobbyFind').textContent = `Looking for game ${code}…`; return; }
+  if (vs && vs.phase === 'over'){
+    showPanel('pOver');
+    const w = vs.winner;
+    $('overTitle').textContent = w === null ? 'Game over' : `${vs.names[w]} wins!`;
+    $('overText').textContent = `Final score ${vs.sc[0]} – ${vs.sc[1]}.`;
+    const again = $('again');
+    if (mode === 'online' && role !== 'host'){ again.hidden = true; $('overText').textContent += ' Waiting for the host to start a rematch.'; }
+    else { again.hidden = false; again.textContent = mode === 'online' ? 'Rematch' : 'Play again'; }
+    return;
+  }
+  showPanel('pPlay');
+  $('pauseBtn').hidden = mode === 'online';
+  $('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+  const hint = $('ctlHint');
+  const near = landscape ? 'left' : 'bottom', far = landscape ? 'right' : 'top';
+  if (mode === 'local') hint.innerHTML = `Cyan (${near}): mouse, arrow keys or a finger on the ${near} half. Magenta (${far}): <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or a finger on the ${far} half.`;
+  else if (role === 'spectator') hint.textContent = 'You are watching this match.';
+  else hint.textContent = (coarse ? `Drag your finger on the ${near} half to move your mallet. Your goal is on the ${near}.` : `Move your mallet with the mouse${role === 'guest' ? '' : ' (or arrow keys)'}. Your goal is on the ${near}.`) + (mode === 'bot' && !coarse ? ' Press P to pause.' : '');
+  const away = $('away');
+  if (mode === 'online' && role === 'host' && oppAway){ away.textContent = 'Your opponent lost connection. The match is paused until they rejoin with code ' + code + '.'; away.hidden = false; }
+  else if (mode === 'online' && role !== 'host' && hostMissing){ away.textContent = 'The host has left or lost connection.'; away.hidden = false; }
+  else away.hidden = true;
+}
+
+/* ---------------- Input ---------------- */
+const pointerOwner = new Map();
+function rinkPos(e){
+  const r = cv.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
+  let x = px * W, y = py * H;
+  if (landscape){ x = py * W; y = H - px * H; }
+  return { x, y };
+}
+function controlled(viewY){
+  if (mode === 'local') return viewY < H / 2 ? 1 : 0;
+  if (mode === 'bot') return 0;
+  if (mode === 'online' && (role === 'host' || role === 'guest')) return role === 'host' ? 0 : 1;
+  return -1;
+}
+function setTarget(idx, e, v){
+  let x = v.x, y = v.y;
+  if (e.pointerType !== 'mouse'){
+    // keep the mallet visible beyond the finger, toward the opponent (v is in the unflipped view's coordinates)
+    const nearSide = flipped() ? idx === 1 : idx === 0;
+    y += nearSide ? -60 : 60;
+  }
+  if (flipped()){ x = W - x; y = H - y; }
+  if (mode === 'online' && role === 'guest'){
+    guestMallet.tx = x; guestMallet.ty = y;
+  } else { g.pd[idx].tx = x; g.pd[idx].ty = y; }
+}
+cv.addEventListener('pointerdown', e => {
+  if (mode === 'demo') return;
+  const v = rinkPos(e), idx = e.pointerType === 'mouse' && mode === 'local' ? 0 : controlled(v.y);
+  if (idx < 0) return;
+  pointerOwner.set(e.pointerId, idx);
+  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+  setTarget(idx, e, v); e.preventDefault();
+  if (actx && actx.state === 'suspended') actx.resume();
+});
+cv.addEventListener('pointermove', e => {
+  if (mode === 'demo' || e.pointerType === 'mouse') return;   // the mouse is handled on the whole window below
+  const v = rinkPos(e);
+  if (pointerOwner.has(e.pointerId)) setTarget(pointerOwner.get(e.pointerId), e, v);
+});
+// A mouse keeps steering even when it slips past the rink's edge; the mallet just stops at the boundary.
+window.addEventListener('pointermove', e => {
+  if (mode === 'demo' || e.pointerType !== 'mouse' || paused) return;
+  const v = rinkPos(e);
+  const idx = pointerOwner.has(e.pointerId) ? pointerOwner.get(e.pointerId) : (mode === 'local' ? 0 : controlled(H));
+  if (idx >= 0) setTarget(idx, e, v);
+});
+const release = e => pointerOwner.delete(e.pointerId);
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', release);
+window.addEventListener('keydown', e => {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+  const k = e.key.toLowerCase();
+  if ((k === 'p' || k === 'escape') && (mode === 'bot' || mode === 'local') && g.phase !== 'over'){ paused = !paused; updatePanels(); return; }
+  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k) && mode !== 'demo'){ keys.add(k); e.preventDefault(); }
+});
+window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+function keyControl(dt){
+  const sp = 1300 * dt;
+  const apply = (idx, up, down, left, right) => {
+    const m = g.pd[idx]; let any = false;
+    if (keys.has(up)){ m.ty -= sp; any = true; } if (keys.has(down)){ m.ty += sp; any = true; }
+    if (keys.has(left)){ m.tx -= sp; any = true; } if (keys.has(right)){ m.tx += sp; any = true; }
+    if (any){ const [x, y] = clampMallet(idx, m.tx, m.ty); m.tx = x; m.ty = y; }
+  };
+  if (mode === 'local'){ apply(0, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'); apply(1, 'w', 's', 'a', 'd'); }
+  else if (mode === 'bot' || (mode === 'online' && role === 'host')) apply(0, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
+}
+
+/* ---------------- Main loop ---------------- */
+let last = performance.now(), acc = 0, pubAt = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const authoritative = mode === 'demo' || mode === 'bot' || mode === 'local' || (mode === 'online' && role === 'host');
+  if (authoritative){
+    const running = !paused && !(mode === 'online' && (oppAway || g.phase === 'wait'));
+    if (running){
+      acc += dt;
+      let guard = 0;
+      while (acc >= STEP && guard++ < 12){
+        if (mode === 'demo'){ aiThink(g, 0, 2); aiThink(g, 1, 2); }
+        else if (mode === 'bot') aiThink(g, 1, level);
+        keyControl(STEP);
+        step(g, STEP);
+        acc -= STEP;
+      }
+      if (mode === 'demo' && (g.phase === 'over' || g.sc[0] + g.sc[1] > 40)){ g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0); }
+    } else acc = 0;
+    // sounds and flashes for new events
+    for (const ev of g.events){ if (ev.n > lastEvSeen){ if (mode !== 'demo') playEvent(ev); lastEvSeen = ev.n; } }
+    if (mode === 'online' && role === 'host' && conn && now - pubAt > 33){ pubAt = now; publishHost(); }
+  } else if (remote){
+    // guest: move our own mallet locally for instant response
+    if (role === 'guest'){ moveMallet(guestMallet, 1, remote.fz[1], dt); sendGuestMallet(now); }
+    for (const ev of remote.ev || []){ if (ev[0] > lastEvSeen){ playEvent({ n:ev[0], k:ev[1], p:ev[2], x:ev[3] }); lastEvSeen = ev[0]; } }
+  }
+  render();
+  updateHud();
+  const vs = viewState();
+  const phaseKey = (vs ? vs.phase : '') + mode + role + oppAway + hostMissing + paused + !!remote;
+  if (phaseKey !== lastPhaseKey){ lastPhaseKey = phaseKey; updatePanels(); }
+}
+let lastPhaseKey = '';
+
+/* ---------------- Local modes ---------------- */
+// Phones and iPads only allow sound after a tap, so switch audio on from the Play tap itself.
+function unlockAudio(){
+  if (!$('snd').checked) return;
+  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
+}
+// Fit the rink to the screen for play and bring it into view (on phones the menu sits below the rink).
+function enterPlayLayout(){
+  document.body.classList.toggle('playing', mode !== 'demo');
+  sizeRink();
+  requestAnimationFrame(() => { try { cv.scrollIntoView({ block:isNarrow() ? 'start' : 'nearest', behavior:reduceMotion ? 'auto' : 'smooth' }); } catch (e) { cv.scrollIntoView(); } });
+}
+function startBot(){
+  level = +document.querySelector('input[name="lv"]:checked').value;
+  savePrefs({ lv:level });
+  mode = 'bot'; role = null; paused = false;
+  g = newGame(['You', ['', 'Computer (easy)', 'Computer', 'Computer (hard)'][level]]);
+  g.serveTo = 0; lastEvSeen = 0; trails.clear();
+  unlockAudio(); updatePanels(); enterPlayLayout();
+}
+function startLocal(){
+  mode = 'local'; role = null; paused = false;
+  g = newGame(['Cyan', 'Magenta']); lastEvSeen = 0; trails.clear();
+  unlockAudio(); updatePanels(); enterPlayLayout();
+}
+function toMenu(){
+  leaveOnline();
+  mode = 'demo'; role = null; paused = false; menuScreen = 'menu';
+  g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0); lastEvSeen = 0; trails.clear(); flashMsg = null;
+  updatePanels(); document.body.classList.remove('playing'); sizeRink();
+}
+
+/* ---------------- Online: peer-to-peer over WebRTC (PeerJS) ---------------- */
+// The host's browser runs the match and streams it to the guest; the guest streams back its mallet position.
+// PeerJS's free public server only introduces the two browsers; game traffic then flows directly between them.
+const NET_PREFIX = 'neonairhockey-v1-';
+let peer = null, conn = null, sendAt = 0, joinTimer = 0;
+const netAvailable = () => typeof window.Peer === 'function';
+function refreshOnlineAvail(){
+  if (netAvailable()){ $('onAvail').hidden = true; $('onForms').hidden = false; }
+  else { $('onForms').hidden = true; $('onAvail').hidden = false; $('onAvail').textContent = 'Online play needs an internet connection. Check your connection, then reload the app.'; }
+}
+const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const makeCode = () => Array.from({ length:4 }, () => ALPH[Math.floor(Math.random() * ALPH.length)]).join('');
+function onErr(t){ $('onErr').textContent = t || ''; $('onErr').hidden = !t; }
+function onStatus(t){ $('onStatus').textContent = t || ''; $('onStatus').hidden = !t; }
+function peerErrText(e, c){
+  switch (e && e.type){
+    case 'peer-unavailable': return `No game found with code ${c}. Check the code, and make sure your friend still has the game open.`;
+    case 'network': case 'server-error': case 'socket-error': case 'socket-closed': return 'Could not reach the matchmaking server. Check your internet connection and try again.';
+    case 'browser-incompatible': return 'This browser does not support online play. Try Chrome, Edge, Firefox or Safari.';
+    case 'webrtc': return 'The connection between your devices failed. Some school, office or mobile networks block direct connections; try a different Wi-Fi network.';
+    default: return 'The online connection failed. Please try again.';
+  }
+}
+function createGame(attempt){
+  if (!netAvailable()) return;
+  attempt = attempt || 0;
+  onErr(''); onStatus('Creating game…');
+  myNick = cleanName($('oName').value) || 'Cyan'; savePrefs({ oName:myNick === 'Cyan' ? '' : myNick });
+  const c = makeCode();
+  $('create').disabled = true;
+  const p = new Peer(NET_PREFIX + c.toLowerCase(), { debug:0 });
+  peer = p;
+  p.on('open', () => {
+    if (peer !== p) return;
+    if (mode === 'online' && role === 'host'){ connected = true; updatePanels(); return; }   // reconnected to the server
+    $('create').disabled = false; onStatus('');
+    code = c; mode = 'online'; role = 'host'; connected = true; guestPeer = null; oppAway = false; paused = false;
+    g = newGame([myNick, 'Waiting…']); g.phase = 'wait'; lastEvSeen = 0; trails.clear();
+    updatePanels(); enterPlayLayout();
+  });
+  p.on('connection', acceptGuest);
+  p.on('disconnected', () => { if (peer !== p) return; connected = false; updatePanels(); setTimeout(() => { try { if (peer === p && !p.destroyed) p.reconnect(); } catch (e) {} }, 1000); });
+  p.on('error', e => {
+    if (peer !== p) return;
+    if (e.type === 'unavailable-id' && attempt < 4){ p.destroy(); createGame(attempt + 1); return; }
+    $('create').disabled = false; onStatus('');
+    if (mode !== 'online'){ onErr(peerErrText(e, c)); p.destroy(); peer = null; }
+    else if (e.type === 'network' || e.type === 'server-error'){ connected = false; updatePanels(); }
+  });
+}
+function acceptGuest(c){
+  if (conn && conn.open){                                   // a third device: the game is full
+    c.on('open', () => { try { c.send({ t:'full' }); } catch (e) {} setTimeout(() => c.close(), 400); });
+    return;
+  }
+  conn = c;
+  c.on('open', () => {
+    if (conn !== c) return;
+    guestPeer = c.peer; oppAway = false;
+    if (g.phase === 'wait'){ g.phase = 'countdown'; g.t = 3; }
+    publishHost(); updatePanels();
+  });
+  c.on('data', d => {
+    if (conn !== c || !d || typeof d !== 'object') return;
+    if (d.t === 'hello'){ g.names[1] = cleanName(d.nick) || 'Magenta'; }
+    else if (d.t === 'm' && Number.isFinite(d.x) && Number.isFinite(d.y)){
+      g.pd[1].tx = clamp(d.x, 0, W); g.pd[1].ty = clamp(d.y, 0, H);
+      const nick = cleanName(d.n); if (nick && nick !== g.names[1]) g.names[1] = nick;
+    }
+  });
+  c.on('close', () => { if (conn === c){ conn = null; oppAway = g.phase !== 'wait'; updatePanels(); } });
+  c.on('error', () => {});
+}
+function joinGame(){
+  if (!netAvailable()) return;
+  onErr('');
+  const c = ($('jCode').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (c.length !== 4){ onErr('Game codes have 4 letters or digits, like K7QF.'); return; }
+  myNick = cleanName($('oName').value) || 'Magenta'; savePrefs({ oName:myNick === 'Magenta' ? '' : myNick });
+  $('join').disabled = true; onStatus(`Connecting to game ${c}…`);
+  const fail = msg => { clearTimeout(joinTimer); $('join').disabled = false; onStatus(''); onErr(msg); if (mode === 'online') toMenu(); leaveOnline(); menuScreen = 'online'; updatePanels(); };
+  const p = new Peer({ debug:0 });
+  peer = p;
+  joinTimer = setTimeout(() => { if (peer === p && !(conn && conn.open)) fail(`Could not connect to game ${c}. Check the code, and that both of you are online. Some school or office networks block game connections.`); }, 15000);
+  p.on('open', () => {
+    if (peer !== p) return;
+    const cn = p.connect(NET_PREFIX + c.toLowerCase(), { serialization:'json', reliable:false });
+    conn = cn;
+    cn.on('open', () => {
+      if (conn !== cn) return;
+      clearTimeout(joinTimer); $('join').disabled = false; onStatus('');
+      code = c; mode = 'online'; role = 'guest'; connected = true; remote = null; hostMissing = false; lastEvSeen = 0; trails.clear();
+      guestMallet.x = guestMallet.tx = W / 2; guestMallet.y = guestMallet.ty = 130;
+      cn.send({ t:'hello', nick:myNick });
+      updatePanels(); enterPlayLayout();
+    });
+    cn.on('data', d => {
+      if (conn !== cn || !d || typeof d !== 'object') return;
+      if (d.t === 'full'){ fail('That game already has two players.'); return; }
+      if (d.t !== 's') return;
+      const s = sanitizeRemote(d.s); if (!s) return;
+      const first = !remote;
+      remote = s; remoteAt = performance.now(); hostMissing = false;
+      if (first){ lastEvSeen = s.ev.length ? s.ev[s.ev.length - 1][0] : 0; smooth.pd0.x = s.pd[0][0]; smooth.pd0.y = s.pd[0][1]; updatePanels(); }
+    });
+    cn.on('close', () => { if (conn === cn){ hostMissing = true; connected = false; updatePanels(); } });
+    cn.on('error', () => {});
+  });
+  p.on('error', e => {
+    if (peer !== p) return;
+    if (mode === 'online' && remote){ hostMissing = true; updatePanels(); return; }
+    fail(peerErrText(e, c));
+  });
+}
+const ri = v => Math.round(v);
+function publishHost(){
+  if (!conn || !conn.open) return;
+  const s = {
+    ph:g.phase, t:Math.round(g.t * 10) / 10, sc:g.sc,
+    pk:g.pucks.map(p => [ri(p.x), ri(p.y), ri(p.vx), ri(p.vy)]),
+    pd:[[ri(g.pd[0].x), ri(g.pd[0].y)], [ri(g.pd[1].x), ri(g.pd[1].y)]],
+    pu:g.pu ? [PU_TYPES.indexOf(g.pu.type), ri(g.pu.x), ri(g.pu.y), Math.round(g.pu.life * 10) / 10] : null,
+    fz:g.fz.map(v => Math.round(v * 10) / 10), sh:g.sh.map(v => Math.round(v * 10) / 10),
+    nm:g.names, w:g.winner, gp:guestPeer,
+    ev:g.events.slice(-6).map(e => [e.n, e.k, e.p, typeof e.x === 'string' ? e.x : (e.x || 0)]),
+  };
+  try { conn.send({ t:'s', s }); } catch (e) {}
+}
+function sendGuestMallet(now){
+  if (role !== 'guest' || !conn || !conn.open || now - sendAt < 33) return;
+  sendAt = now;
+  try { conn.send({ t:'m', x:Math.round(guestMallet.tx), y:Math.round(guestMallet.ty), n:myNick }); } catch (e) {}
+}
+function num(v, d){ return Number.isFinite(v) ? v : d; }
+function sanitizeRemote(s){
+  if (!s || typeof s !== 'object') return null;
+  const arr2 = (a, d) => Array.isArray(a) ? [num(a[0], d), num(a[1], d)] : [d, d];
+  return {
+    ph:['wait', 'countdown', 'play', 'goal', 'over'].includes(s.ph) ? s.ph : 'play',
+    t:num(s.t, 0), sc:arr2(s.sc, 0).map(v => clamp(Math.round(v), 0, 99)),
+    pk:Array.isArray(s.pk) ? s.pk.slice(0, 3).filter(p => Array.isArray(p) && p.slice(0, 4).every(Number.isFinite)).map(p => p.slice(0, 4)) : [],
+    pd:[arr2(s.pd && s.pd[0], W / 2), arr2(s.pd && s.pd[1], W / 2)],
+    pu:Array.isArray(s.pu) && s.pu.slice(0, 4).every(Number.isFinite) && s.pu[0] >= 0 && s.pu[0] < 3 ? s.pu.slice(0, 4) : null,
+    fz:arr2(s.fz, 0), sh:arr2(s.sh, 0),
+    nm:[cleanName(s.nm && s.nm[0]) || 'Cyan', cleanName(s.nm && s.nm[1]) || 'Magenta'],
+    w:s.w === 0 || s.w === 1 ? s.w : null, gp:typeof s.gp === 'string' ? s.gp : null,
+    ev:Array.isArray(s.ev) ? s.ev.filter(e => Array.isArray(e) && Number.isInteger(e[0]) && typeof e[1] === 'string').slice(-6) : [],
+  };
+}
+function leaveOnline(){
+  clearTimeout(findTimer); clearTimeout(joinTimer);
+  const c = conn, p = peer;
+  conn = null; peer = null;
+  try { if (c) c.close(); } catch (e) {}
+  try { if (p) p.destroy(); } catch (e) {}
+  remote = null; code = null; guestPeer = null; oppAway = false; hostMissing = false;
+}
+function inviteLink(){ return location.origin + location.pathname + '#' + code; }
+
+/* ---------------- Wiring ---------------- */
+function init(){
+  const prefs = loadPrefs();
+  if ([1, 2, 3].includes(prefs.lv)) $('lv' + prefs.lv).checked = true;
+  if (prefs.oName) $('oName').value = prefs.oName;
+  if (prefs.snd === false) $('snd').checked = false;
+  $('goBot').addEventListener('click', startBot);
+  $('goLocal').addEventListener('click', startLocal);
+  $('goOnline').addEventListener('click', () => { menuScreen = 'online'; onErr(''); onStatus(''); refreshOnlineAvail(); updatePanels(); });
+  $('onBack').addEventListener('click', () => { menuScreen = 'menu'; updatePanels(); });
+  $('create').addEventListener('click', () => { unlockAudio(); createGame(); });
+  $('join').addEventListener('click', () => { unlockAudio(); joinGame(); });
+  $('jCode').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
+  $('cancelLobby').addEventListener('click', toMenu);
+  $('leave').addEventListener('click', toMenu);
+  $('leave2').addEventListener('click', toMenu);
+  $('pauseBtn').addEventListener('click', () => { paused = !paused; updatePanels(); });
+  $('snd').addEventListener('change', () => savePrefs({ snd:$('snd').checked }));
+  $('copyCode').addEventListener('click', () => {
+    const b = $('copyCode');
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents($('lobbyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Press Ctrl+C'; };
+    try { navigator.clipboard.writeText(code).then(() => { b.textContent = 'Copied'; }, fallback); } catch (e) { fallback(); }
+  });
+  $('copyLink').addEventListener('click', () => {
+    const b = $('copyLink'), link = inviteLink();
+    const fallback = () => { b.textContent = link; };
+    try { navigator.clipboard.writeText(link).then(() => { b.textContent = 'Link copied'; setTimeout(() => { b.textContent = 'Copy invite link'; }, 2000); }, fallback); } catch (e) { fallback(); }
+  });
+  if (navigator.share){ $('shareLink').hidden = false; $('shareLink').addEventListener('click', () => { navigator.share({ title:'Neon Air Hockey', text:`Join my air hockey game! Code ${code}`, url:inviteLink() }).catch(() => {}); }); }
+  // invite links look like …/#K7QF: open the Join form with the code filled in
+  const fromHash = () => {
+    const m = /^#([A-Za-z0-9]{4})$/.exec(location.hash || '');
+    if (m && mode === 'demo'){ $('jCode').value = m[1].toUpperCase(); menuScreen = 'online'; refreshOnlineAvail(); updatePanels(); onStatus('You were invited to game ' + m[1].toUpperCase() + '. Type your name and press Join game.'); }
+  };
+  fromHash(); window.addEventListener('hashchange', fromHash);
+  // install as an app (Chrome, Edge, Android)
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
+  $('installBtn').addEventListener('click', async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; $('installBtn').hidden = true; });
+  window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; });
+  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  window.addEventListener('beforeunload', leaveOnline);
+  $('again').addEventListener('click', () => {
+    if (mode === 'bot') startBot();
+    else if (mode === 'local') startLocal();
+    else if (mode === 'online' && role === 'host'){ const n = g.names.slice(); g = newGame(n); lastEvSeen = 0; trails.clear(); publishHost(); updatePanels(); }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'bot' || mode === 'local') && g.phase !== 'over'){ paused = true; updatePanels(); } });
+  let rsT = 0;
+  window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(sizeRink, 120); });
+  sizeRink(); updatePanels();
+  requestAnimationFrame(frame);
+}
+init();
+})();
+</script>
+
+</body>
+</html>
