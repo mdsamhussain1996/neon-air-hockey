@@ -2,34 +2,35 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="description" content="Neon arcade air hockey with power-ups. Play the computer, a friend on the same screen, or a friend online.">
 <meta name="theme-color" content="#06050d">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Air Hockey">
+<meta name="apple-mobile-web-app-title" content="Neon Air Hockey">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<style>[hidden]{display:none!important} html,body{margin:0} body{padding-top:env(safe-area-inset-top,0px)}</style>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <title>Neon Air Hockey</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:ital,wght@0,400;0,600;0,700;1,600&display=swap">
 <style>
-/* Layout: an arcade cabinet. The glowing rink stands on the left (on top on phones); the control console sits beside it.
-   Deliberately a single dark look: neon needs the dark. */
 :root{
   --bg:#06050d;
-  --panel:#0e0c1c;
+  --panel:rgba(14,12,28,0.92);
+  --panel-solid:#0e0c1c;
   --panel-2:#151231;
   --line:#2a2552;
+  --line-glow:rgba(41,240,255,0.3);
   --ink:#ece9ff;
   --muted:#9a94c4;
   --p1:#29f0ff;
+  --p1-glow:rgba(41,240,255,0.6);
   --p2:#ff3ccf;
+  --p2-glow:rgba(255,60,207,0.6);
   --amber:#ffc23d;
   --lime:#b8ff3c;
   --ice:#8fe3ff;
@@ -39,191 +40,673 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45;padding-inline:16px;padding-block:0 32px;
-  background-image:radial-gradient(60rem 40rem at 20% -10%, rgba(41,240,255,.08), transparent 60%),radial-gradient(50rem 40rem at 100% 0%, rgba(255,60,207,.07), transparent 60%)}
-.app{max-width:1460px;margin:0 auto}
-header{padding-block:18px 14px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 16px}
-h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(1.5rem,4.6vw,2.3rem);letter-spacing:.04em;line-height:1;
-  color:#fff;text-shadow:0 0 6px rgba(41,240,255,.9),0 0 22px rgba(41,240,255,.5),3px 0 0 rgba(255,60,207,.55)}
-.tag{margin:6px 0 0;color:var(--muted);max-width:50ch}
-.pill{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--f-body);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--panel)}
-.pill i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
-.pill.on i{background:var(--lime);box-shadow:0 0 8px var(--lime)}
-.pill.off i{background:var(--warn)}
+html,body{
+  margin:0;padding:0;width:100%;height:100%;height:100dvh;
+  overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:var(--f-body);font-size:15px;line-height:1.45;
+  user-select:none;-webkit-user-select:none;touch-action:none;
+}
+[hidden]{display:none!important}
 
-.game{display:grid;grid-template-columns:auto minmax(270px,340px);gap:20px;justify-content:center;align-items:start}
-@media (max-width:820px){.game{grid-template-columns:minmax(0,1fr)}}
-.rinkwrap{display:flex;justify-content:center;min-width:0}
-#rink{display:block;touch-action:none;border-radius:22px;max-width:100%;cursor:crosshair}
+/* Accessibility Focus */
+button:focus-visible,input:focus-visible,select:focus-visible{
+  outline:2px solid var(--p1);outline-offset:2px;
+}
+
+/* Background Atmosphere */
+.bg-ambient{
+  position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(70rem 50rem at 15% -10%, rgba(41,240,255,.09), transparent 60%),
+                   radial-gradient(60rem 50rem at 85% 110%, rgba(255,60,207,.08), transparent 60%);
+}
+
+/* App Viewport Container */
+#gameApp{
+  position:fixed;inset:0;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  z-index:1;
+}
+
+/* Centered Rink Wrapper */
+#rinkWrapper{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  max-width:100vw;max-height:100vh;max-height:100dvh;
+}
+#rink{
+  display:block;touch-action:none;border-radius:24px;cursor:crosshair;
+  box-shadow:0 0 35px rgba(10,9,24,0.9);
+}
 #rink.menu{cursor:default}
 
-.side{display:grid;gap:12px;min-width:0}
-.score{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.sc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 8px}
-.sc .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sc .pts{font:400 2rem/1 var(--f-display);font-variant-numeric:tabular-nums}
-.sc .fx{grid-column:1 / -1;font-size:12px;color:var(--muted);min-height:1.2em}
-#sc0{border-color:rgba(41,240,255,.45)} #sc0 .pts{color:var(--p1);text-shadow:0 0 12px rgba(41,240,255,.6)}
-#sc1{border-color:rgba(255,60,207,.45)} #sc1 .pts{color:var(--p2);text-shadow:0 0 12px rgba(255,60,207,.6)}
+/* ---------------- HUD ON RINK EDGES ---------------- */
+#hudOverlay{
+  position:absolute;inset:0;pointer-events:none;z-index:5;
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:12px;border-radius:24px;overflow:hidden;
+}
+.hud-active{pointer-events:auto}
 
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:12px}
-.panel h2{margin:0;font:400 1rem/1.2 var(--f-display);letter-spacing:.03em}
-.panel p{margin:0}
-.muted{color:var(--muted)}
-.card{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px}
-.card b{font:400 .95rem var(--f-display);letter-spacing:.02em}
-.card p{font-size:.9rem;color:var(--muted)}
-.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.btn{font:700 .95rem var(--f-body);letter-spacing:.02em;padding:9px 16px;border-radius:9px;border:1px solid transparent;cursor:pointer;background:var(--ink);color:var(--bg)}
-.btn.c1{background:var(--p1);color:#03121a;box-shadow:0 0 14px rgba(41,240,255,.35)}
-.btn.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
-.btn.ghost:hover{border-color:var(--muted)}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-button:focus-visible,input:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
-.seg{display:inline-grid;grid-auto-flow:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+/* Top Toolbar: Pause & Fullscreen */
+.hud-topbar{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  pointer-events:none;z-index:6;
+}
+.hud-btn{
+  width:44px;height:44px;border-radius:12px;border:1px solid var(--line);
+  background:rgba(14,12,28,0.75);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;
+  pointer-events:auto;transition:border-color .15s,background .15s,transform .1s;
+}
+.hud-btn:hover{border-color:var(--p1);background:rgba(21,18,49,0.9);transform:scale(1.05)}
+.hud-btn:active{transform:scale(0.95)}
+.hud-btn svg{width:20px;height:20px;fill:currentColor}
+
+/* Player Score & Info Badges */
+.hud-player{
+  display:flex;align-items:center;gap:12px;pointer-events:auto;
+  background:rgba(14,12,28,0.7);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  border:1px solid var(--line);border-radius:14px;padding:6px 14px;
+}
+.hud-p0{border-color:rgba(41,240,255,0.4);box-shadow:0 0 14px rgba(41,240,255,0.15)}
+.hud-p1{border-color:rgba(255,60,207,0.4);box-shadow:0 0 14px rgba(255,60,207,0.15)}
+
+.hud-score{
+  font-family:var(--f-display);font-size:clamp(1.8rem, 4vw, 2.5rem);line-height:1;
+  font-variant-numeric:tabular-nums;
+}
+.hud-p0 .hud-score{color:var(--p1);text-shadow:0 0 12px var(--p1-glow)}
+.hud-p1 .hud-score{color:var(--p2);text-shadow:0 0 12px var(--p2-glow)}
+
+.hud-info{display:flex;flex-direction:column;min-width:0}
+.hud-name{
+  font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;
+}
+.hud-fx{font-size:12px;color:var(--muted);min-height:1.2em}
+
+/* Active Power-up Ring Badge */
+.pu-badge{
+  position:relative;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;
+}
+.pu-ring{width:34px;height:34px;transform:rotate(-90deg)}
+.pu-bg{fill:none;stroke:rgba(255,255,255,0.1);stroke-width:3.5}
+.pu-fill{fill:none;stroke-width:3.5;stroke-linecap:round;transition:stroke-dashoffset .1s linear}
+.pu-badge.freeze .pu-fill{stroke:var(--ice)}
+.pu-badge.multi .pu-fill{stroke:var(--lime)}
+.pu-badge.shield .pu-fill{stroke:var(--amber)}
+.pu-badge.big .pu-fill{stroke:#ff9d3b}
+.pu-badge.tiny .pu-fill{stroke:#b57aff}
+.pu-badge.curve .pu-fill{stroke:#3bffaa}
+.pu-badge.ghost .pu-fill{stroke:#e0e0ff}
+.pu-badge.magnet .pu-fill{stroke:#ff4b4b}
+.pu-icon-text{position:absolute;font-size:14px;font-weight:bold;line-height:1}
+
+/* Stored Power-Up Button (Phase 3 slot) */
+.stored-pu-btn{
+  width:48px;height:48px;border-radius:14px;border:1px dashed var(--line);
+  background:rgba(14,12,28,0.7);backdrop-filter:blur(6px);
+  color:var(--muted);display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  pointer-events:auto;font-size:11px;font-weight:700;cursor:pointer;
+}
+.stored-pu-btn.ready{border:1px solid var(--p1);box-shadow:0 0 12px var(--p1-glow);color:var(--p1)}
+
+/* Rotate Device Hint on Phones */
+#rotateHint{
+  position:absolute;bottom:70px;left:50%;transform:translateX(-50%);
+  background:rgba(21,18,49,0.95);border:1px solid var(--p1);border-radius:999px;
+  padding:8px 16px;display:flex;align-items:center;gap:10px;
+  font-size:13px;font-weight:600;color:#fff;box-shadow:0 0 16px rgba(41,240,255,0.3);
+  pointer-events:auto;z-index:7;animation:hintBob 2s infinite ease-in-out;
+}
+@keyframes hintBob{0%,100%{transform:translate(-50%,0)} 50%{transform:translate(-50%,-4px)}}
+#rotateHint button{
+  background:none;border:none;color:var(--muted);font-size:16px;cursor:pointer;padding:0 4px;
+}
+#rotateHint button:hover{color:#fff}
+
+/* ---------------- SCREEN SYSTEM ---------------- */
+#screensLayer{
+  position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;padding:16px;
+}
+.screen{
+  position:relative;width:100%;max-width:480px;max-height:92vh;max-height:92dvh;
+  overflow-y:auto;overflow-x:hidden;
+  background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--line);border-radius:20px;padding:24px;
+  display:flex;flex-direction:column;gap:16px;pointer-events:auto;
+  box-shadow:0 12px 48px rgba(0,0,0,0.8), 0 0 20px rgba(41,240,255,0.1);
+  opacity:1;transform:scale(1);
+  transition:opacity 0.2s cubic-bezier(0.16,1,0.3,1), transform 0.2s cubic-bezier(0.16,1,0.3,1);
+}
+.screen.entering{opacity:0;transform:scale(0.96)}
+.screen.exiting{opacity:0;transform:scale(1.02);pointer-events:none}
+@media (prefers-reduced-motion: reduce){
+  .screen{transition:none!important}
+  #rotateHint{animation:none!important}
+  .neon-flicker{animation:none!important}
+}
+
+/* Title Screen Styling */
+.title-header{text-align:center;padding-top:8px}
+.neon-logo{
+  margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(1.9rem, 7vw, 2.7rem);
+  letter-spacing:.05em;line-height:1.1;color:#fff;
+  text-shadow:0 0 8px rgba(41,240,255,.9), 0 0 24px rgba(41,240,255,.5), 3px 0 0 rgba(255,60,207,.6);
+}
+.neon-logo span{display:block;font-size:.78em;color:var(--p2);text-shadow:0 0 8px rgba(255,60,207,.9), 0 0 24px rgba(255,60,207,.5)}
+.neon-flicker{animation:neonFlicker 6s infinite alternate}
+@keyframes neonFlicker{
+  0%, 18%, 20%, 50%, 54%, 70%, 100%{opacity:1}
+  19%, 53%{opacity:0.86}
+}
+.title-tag{margin:8px auto 0;color:var(--muted);font-size:14px;max-width:36ch}
+.menu-btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+
+/* Button & Control Styles (Touch target >= 44px) */
+.btn{
+  min-height:44px;font-family:var(--f-body);font-weight:700;font-size:15px;letter-spacing:.02em;
+  padding:10px 18px;border-radius:12px;border:1px solid transparent;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--ink);color:var(--bg);text-decoration:none;
+  transition:border-color .15s,box-shadow .15s,transform .1s,background .15s;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(1px)}
+.btn.c1{
+  background:var(--p1);color:#03121a;box-shadow:0 0 16px rgba(41,240,255,.4);
+}
+.btn.c1:hover{box-shadow:0 0 24px rgba(41,240,255,.65)}
+.btn.c2{
+  background:var(--p2);color:#1a0314;box-shadow:0 0 16px rgba(255,60,207,.4);
+}
+.btn.c2:hover{box-shadow:0 0 24px rgba(255,60,207,.65)}
+.btn.ghost{
+  background:rgba(21,18,49,0.7);border-color:var(--line);color:var(--ink);
+}
+.btn.ghost:hover{border-color:var(--muted);background:rgba(30,26,70,0.8)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none!important}
+
+/* Cards & Sections */
+.card{
+  background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:14px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.card.clickable{cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .1s}
+.card.clickable:hover{border-color:var(--p1);transform:translateY(-1px);box-shadow:0 0 16px rgba(41,240,255,0.15)}
+.card b{font-family:var(--f-display);font-size:1rem;font-weight:400;letter-spacing:.02em}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.space-between{justify-content:space-between}
+
+/* Segmented Inputs */
+.seg{
+  display:inline-grid;grid-auto-flow:column;border:1px solid var(--line);border-radius:10px;
+  overflow:hidden;background:var(--panel-2);min-height:44px;
+}
 .seg input{position:absolute;opacity:0;pointer-events:none}
-.seg label{padding:6px 11px;cursor:pointer;font-weight:600;font-size:.88rem}
+.seg label{
+  min-height:44px;padding:10px 14px;cursor:pointer;font-weight:600;font-size:14px;
+  display:inline-flex;align-items:center;justify-content:center;
+}
 .seg label + input + label{border-left:1px solid var(--line)}
 .seg input:checked + label{background:var(--ink);color:var(--bg)}
 .seg input:focus-visible + label{outline:2px solid var(--p1);outline-offset:-3px}
-.field{display:grid;gap:4px;min-width:0}
-.field label{font-size:.85rem;color:var(--muted)}
-input[type="text"]{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
-.code{font:400 clamp(2rem,8vw,2.6rem)/1 var(--f-display);letter-spacing:.14em;color:#fff;text-shadow:0 0 12px rgba(41,240,255,.6)}
-.err{margin:0;background:rgba(255,179,107,.12);color:var(--warn);border:1px solid rgba(255,179,107,.35);border-radius:8px;padding:8px 10px;font-size:.9rem}
-.check{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-size:.92rem}
-.check input{width:16px;height:16px;margin:0;accent-color:var(--p1)}
-.keys{font-size:.9rem;color:var(--muted)}
-.keys kbd{font:600 12px var(--f-body);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px;color:var(--ink);background:var(--panel-2)}
-.legend{display:grid;gap:8px;margin:10px 0 2px;padding:0;list-style:none}
-.legend li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start}
-.legend i{width:14px;height:14px;border-radius:50%;margin-top:3px;display:inline-block}
-/* while a match is on, drop the title and rules so the whole rink fits in view (laptops and phones) */
-body.playing header, body.playing details.rules{display:none}
-body.playing .app{padding-top:12px}
-@media (max-width:820px){
-  body.playing .game{gap:10px}
-  body.playing .app{padding-top:8px}
-  body.playing .sc{padding:6px 10px}
-  body.playing .sc .pts{font-size:1.5rem}
-}
-details.rules{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
-details.rules summary{cursor:pointer;font:400 .95rem var(--f-display);letter-spacing:.02em}
-details.rules p{margin:8px 0 0;color:var(--muted);font-size:.92rem}
-</style>
 
+/* Text Fields */
+.field{display:grid;gap:6px;min-width:0;width:100%}
+.field label{font-size:14px;color:var(--muted);font-weight:600}
+input[type="text"]{
+  min-height:44px;width:100%;font:inherit;color:var(--ink);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:15px;
+}
+
+/* Range Sliders */
+.slider-row{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%}
+.slider-row input[type="range"]{
+  flex:1;height:6px;border-radius:3px;accent-color:var(--p1);cursor:pointer;background:var(--line);
+}
+.slider-val{font-family:var(--f-display);font-size:14px;color:var(--p1);min-width:44px;text-align:right}
+
+/* Switch / Checkbox */
+.switch{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  min-height:44px;cursor:pointer;gap:12px;
+}
+.switch input{display:none}
+.switch-track{
+  width:48px;height:26px;border-radius:13px;background:var(--line);
+  position:relative;transition:background .2s;flex-shrink:0;
+}
+.switch-track::after{
+  content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;
+  border-radius:50%;background:#fff;transition:transform .2s;
+}
+.switch input:checked + .switch-track{background:var(--p1);box-shadow:0 0 10px var(--p1-glow)}
+.switch input:checked + .switch-track::after{transform:translateX(22px);background:#03121a}
+
+/* Stats Grid on Results & Stats Overlays */
+.stats-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-block:6px;
+}
+.stat-box{
+  background:rgba(21,18,49,0.8);border:1px solid var(--line);border-radius:12px;
+  padding:10px 12px;display:flex;flex-direction:column;gap:3px;
+}
+.stat-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.stat-val{font-family:var(--f-display);font-size:1.25rem;color:#fff}
+.stat-val.p1{color:var(--p1)}
+.stat-val.p2{color:var(--p2)}
+
+/* Winner Banner */
+.winner-banner{
+  text-align:center;padding:12px;background:rgba(21,18,49,0.9);
+  border:1px solid var(--line);border-radius:14px;
+}
+.winner-banner h2{
+  margin:0;font-family:var(--f-display);font-size:clamp(1.5rem, 5vw, 2.1rem);
+  letter-spacing:.03em;
+}
+.final-score{
+  font-family:var(--f-display);font-size:2.4rem;color:#fff;
+  letter-spacing:.08em;margin-top:6px;
+}
+
+/* Service Worker Reload Banner */
+#swUpdate{
+  position:fixed;top:14px;left:50%;transform:translateX(-50%);
+  background:var(--panel-2);border:1px solid var(--lime);border-radius:999px;
+  padding:8px 16px;display:flex;align-items:center;gap:12px;
+  font-size:14px;font-weight:600;box-shadow:0 0 20px rgba(184,255,60,0.3);
+  z-index:100;
+}
+#swUpdate button{
+  background:var(--lime);color:#091a03;border:none;border-radius:999px;
+  padding:5px 12px;font:inherit;font-weight:700;cursor:pointer;
+}
+
+/* Error and Status text */
+.err{margin:0;background:rgba(255,179,107,.12);color:var(--warn);border:1px solid rgba(255,179,107,.35);border-radius:10px;padding:10px 12px;font-size:14px}
+.status-msg{margin:0;color:var(--muted);font-size:14px;text-align:center}
+.code{font:400 clamp(2rem,8vw,2.5rem)/1 var(--f-display);letter-spacing:.14em;color:#fff;text-shadow:0 0 12px var(--p1-glow)}
+</style>
 </head>
 <body>
-<div class="app">
-  <header>
-    <div>
-      <h1>NEON AIR HOCKEY</h1>
-      <p class="tag">First to 7 goals. Smash the puck, grab power-ups in the centre zone, and keep your goal locked.</p>
+<div class="bg-ambient"></div>
+
+<!-- SW Update Notification -->
+<div id="swUpdate" role="status" hidden>
+  <span>New version available</span>
+  <button type="button" id="swReloadBtn">Reload</button>
+</div>
+
+<!-- Main Game Viewport (fills screen without scroll) -->
+<div id="gameApp">
+  <div id="rinkWrapper">
+    <canvas id="rink" class="menu" role="img" aria-label="Neon Air Hockey Rink"></canvas>
+
+    <!-- In-Rink HUD (overlay positioned directly on rink edges) -->
+    <div id="hudOverlay" hidden>
+      <!-- Top Bar: Pause & Fullscreen -->
+      <div class="hud-topbar">
+        <button class="hud-btn" id="hudPauseBtn" type="button" aria-label="Pause Game">
+          <svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <div id="hudConnPill" class="card row" style="padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700" hidden>
+          <span id="hudConnDot" style="width:8px;height:8px;border-radius:50%;background:var(--lime);display:inline-block"></span>
+          <span id="hudConnText">ONLINE</span>
+        </div>
+        <button class="hud-btn" id="hudFullscreenBtn" type="button" aria-label="Toggle Fullscreen">
+          <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+        </button>
+      </div>
+
+      <!-- Player 1 HUD (Magenta / Far) -->
+      <div class="hud-player hud-p1" id="hudP1" style="align-self:flex-start">
+        <div class="hud-score" id="hudScore1">0</div>
+        <div class="hud-info">
+          <span class="hud-name" id="hudName1">Magenta</span>
+          <span class="hud-fx" id="hudFx1"></span>
+        </div>
+        <div class="pu-badge" id="hudPuBadge1" hidden>
+          <svg class="pu-ring" viewBox="0 0 36 36">
+            <path class="pu-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            <path class="pu-fill" id="hudPuRing1" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+          </svg>
+          <span class="pu-icon-text" id="hudPuIcon1">❄️</span>
+        </div>
+      </div>
+
+      <!-- Player 0 HUD (Cyan / Near) -->
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;width:100%">
+        <div class="hud-player hud-p0" id="hudP0">
+          <div class="hud-score" id="hudScore0">0</div>
+          <div class="hud-info">
+            <span class="hud-name" id="hudName0">Cyan</span>
+            <span class="hud-fx" id="hudFx0"></span>
+          </div>
+          <div class="pu-badge" id="hudPuBadge0" hidden>
+            <svg class="pu-ring" viewBox="0 0 36 36">
+              <path class="pu-bg" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+              <path class="pu-fill" id="hudPuRing0" stroke-dasharray="100, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+            </svg>
+            <span class="pu-icon-text" id="hudPuIcon0">🛡️</span>
+          </div>
+        </div>
+
+        <!-- Stored Power-Up Slot (Phase 3 slot trigger button) -->
+        <button class="stored-pu-btn" id="hudStoredPuBtn" type="button" aria-label="Use Stored Power-Up" disabled>
+          <span id="hudStoredIcon" style="font-size:18px">⭘</span>
+          <span>STORE</span>
+        </button>
+      </div>
+
+      <!-- Rotate device hint (phones in portrait) -->
+      <div id="rotateHint" hidden>
+        <span>📱 Rotate for a bigger rink</span>
+        <button type="button" id="dismissRotateBtn" aria-label="Dismiss rotation hint">✕</button>
+      </div>
     </div>
-    <div class="row"><button class="btn ghost" id="installBtn" type="button" hidden>Install app</button><span class="pill" id="conn" hidden><i></i><span id="connText">Online</span></span></div>
-  </header>
+  </div>
+</div>
 
-  <main class="game">
-    <div class="rinkwrap"><canvas id="rink" class="menu" role="img" aria-label="Air hockey rink"></canvas></div>
+<!-- Screen & Overlay Layer (One screen at a time with smooth transitions) -->
+<div id="screensLayer">
 
-    <aside class="side">
-      <section class="score" aria-label="Score">
-        <div class="sc" id="sc0"><span class="nm" id="nm0">Cyan</span><span class="pts" id="pt0">0</span><span class="fx" id="fx0"></span></div>
-        <div class="sc" id="sc1"><span class="nm" id="nm1">Magenta</span><span class="pts" id="pt1">0</span><span class="fx" id="fx1"></span></div>
-      </section>
+  <!-- 1. Title Screen -->
+  <section class="screen" id="screenTitle">
+    <div class="title-header">
+      <h1 class="neon-logo neon-flicker">NEON<br><span>AIR HOCKEY</span></h1>
+      <p class="title-tag">Arcade action · First to 7 goals · Power-up battles</p>
+    </div>
+    <div class="menu-btn-stack">
+      <button class="btn c1" id="btnTitlePlay" type="button">Play Game</button>
+      <button class="btn c2" id="btnTitleOnline" type="button">Online Match</button>
+      <div class="row" style="margin-top:4px">
+        <button class="btn ghost" id="btnTitleSettings" type="button" style="flex:1">Settings</button>
+        <button class="btn ghost" id="btnTitleStats" type="button" style="flex:1">Stats</button>
+      </div>
+      <button class="btn ghost" id="btnTitleRules" type="button">How to Play</button>
+      <button class="btn ghost" id="installBtn" type="button" hidden>Install App</button>
+    </div>
+    <div style="text-align:center;font-size:12px;color:var(--muted)">v2.0 · Arcade Edition</div>
+  </section>
 
-      <!-- Menu -->
-      <section class="panel" id="pMenu">
-        <h2>Choose a game</h2>
-        <div class="card">
-          <b>Vs computer</b>
-          <div class="row">
-            <div class="seg" role="radiogroup" aria-label="Computer strength">
-              <input type="radio" name="lv" id="lv1" value="1"><label for="lv1">Easy</label>
-              <input type="radio" name="lv" id="lv2" value="2" checked><label for="lv2">Medium</label>
-              <input type="radio" name="lv" id="lv3" value="3"><label for="lv3">Hard</label>
-            </div>
-            <button class="btn c1" id="goBot" type="button">Play</button>
-          </div>
+  <!-- 2. Mode Select Screen -->
+  <section class="screen" id="screenModes" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">SELECT MODE</h2>
+      <button class="btn ghost" data-back="title" type="button" style="padding:6px 12px;min-height:36px">Back</button>
+    </div>
+    <div class="card clickable" id="cardModeBot">
+      <b>Vs Computer</b>
+      <p>Practise solo against AI with adjustable speed and attack styles.</p>
+    </div>
+    <div class="card clickable" id="cardModeLocal">
+      <b>Two Players · One Screen</b>
+      <p>Pass-and-play on one phone/tablet, or mouse + W A S D on laptop.</p>
+    </div>
+    <div class="card clickable" id="cardModeOnline">
+      <b>Online P2P</b>
+      <p>Play a friend anywhere over WebRTC with a 4-letter invite code.</p>
+    </div>
+  </section>
+
+  <!-- 3. Setup Screen (Vs Computer) -->
+  <section class="screen" id="screenSetup" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">VS COMPUTER</h2>
+      <button class="btn ghost" data-back="modes" type="button" style="padding:6px 12px;min-height:36px">Back</button>
+    </div>
+    <div class="field">
+      <label for="setupPlayerName">Your Name</label>
+      <input type="text" id="setupPlayerName" maxlength="14" placeholder="You" autocomplete="off">
+    </div>
+    <div class="field">
+      <label>Difficulty</label>
+      <div class="seg" role="radiogroup" aria-label="Difficulty">
+        <input type="radio" name="lv" id="lv1" value="1"><label for="lv1">Easy</label>
+        <input type="radio" name="lv" id="lv2" value="2" checked><label for="lv2">Medium</label>
+        <input type="radio" name="lv" id="lv3" value="3"><label for="lv3">Hard</label>
+      </div>
+    </div>
+    <button class="btn c1" id="btnStartBotMatch" type="button" style="margin-top:8px">Start Duel</button>
+  </section>
+
+  <!-- 4. Online Setup & Lobby Screen -->
+  <section class="screen" id="screenOnline" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">ONLINE PLAY</h2>
+      <button class="btn ghost" data-back="modes" type="button" style="padding:6px 12px;min-height:36px">Back</button>
+    </div>
+    <p class="status-msg" id="onAvail" hidden>Online play needs an internet connection.</p>
+    <div id="onForms" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field">
+        <label for="oName">Your Name</label>
+        <input type="text" id="oName" maxlength="14" placeholder="Cyan" autocomplete="off">
+      </div>
+      <div class="card">
+        <b>Host a Match</b>
+        <p>You play Cyan on your half. Send your friend the code.</p>
+        <button class="btn c1" id="create" type="button" style="margin-top:4px">Create Room</button>
+      </div>
+      <div class="card">
+        <b>Join a Match</b>
+        <div class="field" style="margin-top:4px">
+          <label for="jCode">Enter 4-letter Code</label>
+          <input type="text" id="jCode" maxlength="6" placeholder="e.g. K7QF" autocomplete="off" spellcheck="false" style="font-family:var(--f-display);letter-spacing:.15em;text-transform:uppercase">
         </div>
-        <div class="card">
-          <b>Two players, one screen</b>
-          <p>On a phone or tablet, each player drags on their own half. On a laptop, cyan uses the mouse and magenta uses <kbd style="font:inherit">W A S D</kbd>.</p>
-          <div class="row"><button class="btn" id="goLocal" type="button">Play</button></div>
-        </div>
-        <div class="card">
-          <b>Online</b>
-          <p>Each player on their own phone or laptop, anywhere with internet. One creates a game and sends an invite link or 4-letter code.</p>
-          <div class="row"><button class="btn" id="goOnline" type="button">Set up</button></div>
-        </div>
-      </section>
+        <button class="btn" id="join" type="button" style="margin-top:4px">Join Match</button>
+      </div>
+    </div>
 
-      <!-- Online setup -->
-      <section class="panel" id="pOnline" hidden>
-        <h2>Online</h2>
-        <p class="muted" id="onAvail" hidden>Online play needs an internet connection.</p>
-        <div id="onForms" hidden style="display:grid;gap:12px">
-          <div class="field"><label for="oName">Your name</label><input type="text" id="oName" maxlength="14" placeholder="Your name" autocomplete="off"></div>
-          <div class="card"><b>Start a game</b><p>You play cyan, at the bottom.</p><div class="row"><button class="btn c1" id="create" type="button">Create game</button></div></div>
-          <div class="card">
-            <b>Join a game</b>
-            <div class="field"><label for="jCode">Game code</label><input type="text" id="jCode" maxlength="6" placeholder="e.g. K7QF" autocomplete="off" spellcheck="false" style="letter-spacing:.15em;text-transform:uppercase"></div>
-            <div class="row"><button class="btn" id="join" type="button">Join game</button></div>
-          </div>
+    <!-- Active Lobby Panel (Host or Guest) -->
+    <div id="pLobby" hidden style="display:flex;flex-direction:column;gap:14px;text-align:center">
+      <div id="lobbyHost">
+        <p style="margin:0;color:var(--muted)">YOUR ROOM CODE</p>
+        <div class="code" id="lobbyCode" style="margin:4px 0">----</div>
+        <div class="row" style="justify-content:center;margin-top:6px">
+          <button class="btn ghost" id="copyCode" type="button">Copy Code</button>
+          <button class="btn c1" id="copyLink" type="button">Copy Link</button>
+          <button class="btn ghost" id="shareLink" type="button" hidden>Share…</button>
         </div>
-        <p class="muted" id="onStatus" role="status" hidden></p>
-        <p class="err" id="onErr" role="alert" hidden></p>
-        <div class="row"><button class="btn ghost" type="button" id="onBack">Back</button></div>
-      </section>
+        <p class="status-msg" style="margin-top:10px">Waiting for opponent to connect…</p>
+      </div>
+      <div id="lobbyGuest" hidden>
+        <p><b id="lobbyFind" style="font-family:var(--f-display)">Connecting…</b></p>
+        <p class="status-msg" id="lobbyHint">Match will start automatically once connected.</p>
+      </div>
+      <button class="btn ghost" id="cancelLobby" type="button">Cancel</button>
+    </div>
 
-      <!-- Lobby -->
-      <section class="panel" id="pLobby" hidden>
-        <div id="lobbyHost">
-          <p class="muted">Your game code</p>
-          <div class="row"><span class="code" id="lobbyCode">----</span><button class="btn ghost" id="copyCode" type="button">Copy</button></div>
-          <p style="margin-top:8px">Send your friend the invite link, or tell them the code. They open this app, choose <b>Online</b>, then <b>Join game</b>.</p>
-          <div class="row" style="margin-top:8px"><button class="btn c1" id="copyLink" type="button">Copy invite link</button><button class="btn ghost" id="shareLink" type="button" hidden>Share…</button></div>
-          <p class="muted" style="margin-top:6px">Waiting for your opponent…</p>
+    <p class="status-msg" id="onStatus" role="status" hidden></p>
+    <p class="err" id="onErr" role="alert" hidden></p>
+  </section>
+
+  <!-- 5. Results Screen -->
+  <section class="screen" id="screenResults" hidden>
+    <div class="winner-banner">
+      <h2 id="resWinnerTitle">CYAN WINS!</h2>
+      <div class="final-score" id="resScore">7 – 4</div>
+    </div>
+
+    <!-- Match Stats -->
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-label">Fastest Shot</span>
+        <span class="stat-val" id="resFastestShot">-- km/h</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Possession</span>
+        <span class="stat-val" id="resPossession">50% / 50%</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Shots on Goal</span>
+        <span class="stat-val" id="resShots">0 vs 0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Goal Saves</span>
+        <span class="stat-val" id="resSaves">0 vs 0</span>
+      </div>
+      <div class="stat-box" style="grid-column:1 / -1">
+        <span class="stat-label">Power-ups Collected</span>
+        <span class="stat-val" id="resPowerUps">0 vs 0</span>
+      </div>
+    </div>
+
+    <div class="menu-btn-stack">
+      <button class="btn c1" id="btnResRematch" type="button">Rematch</button>
+      <button class="btn ghost" id="btnResChangeMode" type="button">Change Mode</button>
+      <button class="btn ghost" id="btnResShare" type="button">Share Result</button>
+    </div>
+  </section>
+
+  <!-- 6. Pause Overlay Menu -->
+  <section class="screen" id="overlayPause" hidden>
+    <div style="text-align:center">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.6rem;color:#fff">PAUSED</h2>
+      <p id="pauseOnlineStatus" class="status-msg" style="margin-top:6px" hidden></p>
+    </div>
+    <div class="menu-btn-stack">
+      <button class="btn c1" id="btnPauseResume" type="button">Resume</button>
+      <button class="btn ghost" id="btnPauseRestart" type="button">Restart</button>
+      <button class="btn ghost" id="btnPauseSettings" type="button">Settings</button>
+      <button class="btn ghost" id="btnPauseQuit" type="button">Quit to Title</button>
+    </div>
+  </section>
+
+  <!-- 7. Settings Overlay Panel -->
+  <section class="screen" id="overlaySettings" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">SETTINGS</h2>
+      <button class="btn ghost" id="btnCloseSettings" type="button" style="padding:6px 12px;min-height:36px">Close</button>
+    </div>
+    
+    <div class="card">
+      <div class="slider-row">
+        <span style="font-weight:600">Mallet Sensitivity</span>
+        <input type="range" id="setSensitivity" min="0.5" max="1.5" step="0.1" value="1.0">
+        <span class="slider-val" id="valSensitivity">1.0×</span>
+      </div>
+      <div class="slider-row">
+        <span style="font-weight:600">Sound Volume</span>
+        <input type="range" id="setSndVol" min="0" max="100" step="5" value="80">
+        <span class="slider-val" id="valSndVol">80%</span>
+      </div>
+      <div class="slider-row">
+        <span style="font-weight:600">Music Volume</span>
+        <input type="range" id="setMusicVol" min="0" max="100" step="5" value="50">
+        <span class="slider-val" id="valMusicVol">50%</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="switch">
+        <span>Vibration / Haptics</span>
+        <input type="checkbox" id="setVibrate" checked>
+        <span class="switch-track"></span>
+      </label>
+      <label class="switch">
+        <span>Screen Glow & Shake</span>
+        <input type="checkbox" id="setEffects" checked>
+        <span class="switch-track"></span>
+      </label>
+      <label class="switch">
+        <span>Colour-blind Shapes</span>
+        <input type="checkbox" id="setColorblind">
+        <span class="switch-track"></span>
+      </label>
+      <label class="switch">
+        <span>Left-handed Setup</span>
+        <input type="checkbox" id="setLeftHanded">
+        <span class="switch-track"></span>
+      </label>
+      <label class="switch">
+        <span>Show Speed Numbers</span>
+        <input type="checkbox" id="setShowSpeed" checked>
+        <span class="switch-track"></span>
+      </label>
+    </div>
+
+    <div class="card">
+      <div class="row space-between">
+        <span style="font-weight:600">Graphics Quality</span>
+        <div class="seg" role="radiogroup" aria-label="Graphics Quality">
+          <input type="radio" name="qual" id="qualHigh" value="high" checked><label for="qualHigh">High</label>
+          <input type="radio" name="qual" id="qualLow" value="low"><label for="qualLow">Low</label>
         </div>
-        <div id="lobbyGuest" hidden>
-          <p><b id="lobbyFind">Looking for game…</b></p>
-          <p class="muted" id="lobbyHint">Keep this page open. The match starts as soon as the host is found.</p>
-        </div>
-        <div class="row"><button class="btn ghost" id="cancelLobby" type="button">Cancel</button></div>
-      </section>
+      </div>
+    </div>
 
-      <!-- Playing -->
-      <section class="panel" id="pPlay" hidden>
-        <p class="keys" id="ctlHint">Move your mallet with the mouse or your finger.</p>
-        <p class="err" id="away" hidden></p>
-        <div class="row">
-          <button class="btn ghost" id="pauseBtn" type="button">Pause</button>
-          <button class="btn ghost" id="leave" type="button">Leave game</button>
-          <label class="check"><input type="checkbox" id="snd" checked> Sound</label>
-        </div>
-      </section>
+    <button class="btn ghost" id="btnPhysicsLabPromo" type="button">🔬 Physics Lab (Phase 6 Sandbox)</button>
+  </section>
 
-      <!-- Game over -->
-      <section class="panel" id="pOver" hidden>
-        <h2 id="overTitle">Game over</h2>
-        <p class="muted" id="overText"></p>
-        <div class="row"><button class="btn c1" id="again" type="button">Play again</button><button class="btn ghost" id="leave2" type="button">Main menu</button></div>
-      </section>
+  <!-- 8. Lifetime Stats Overlay -->
+  <section class="screen" id="overlayStats" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">CAREER STATS</h2>
+      <button class="btn ghost" id="btnCloseStats" type="button" style="padding:6px 12px;min-height:36px">Close</button>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-box">
+        <span class="stat-label">Matches Played</span>
+        <span class="stat-val" id="statMatches">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Total Wins</span>
+        <span class="stat-val p1" id="statWins">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Total Goals</span>
+        <span class="stat-val" id="statGoals">0</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Fastest Shot</span>
+        <span class="stat-val p2" id="statFastest">0 km/h</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Longest Rally</span>
+        <span class="stat-val" id="statRally">0 hits</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-label">Power-ups Used</span>
+        <span class="stat-val" id="statPowerups">0</span>
+      </div>
+    </div>
+    <div class="row space-between" style="margin-top:6px">
+      <button class="btn ghost" id="btnResetStats" type="button" style="color:var(--warn)">Reset Stats</button>
+      <button class="btn c1" id="btnDoneStats" type="button">Back</button>
+    </div>
+  </section>
 
-      <details class="rules">
-        <summary>Rules and power-ups</summary>
-        <p>Keep your mallet on your own half. Hit the puck into your opponent's goal; the first player to 7 wins. The puck bounces off the walls and mallets, and a fast-moving mallet hits harder.</p>
-        <ul class="legend">
-          <li><i style="background:var(--ice);box-shadow:0 0 8px var(--ice)"></i><span><b>Freeze</b>: your opponent's mallet moves at half speed for 5 seconds.</span></li>
-          <li><i style="background:var(--lime);box-shadow:0 0 8px var(--lime)"></i><span><b>Multi-puck</b>: a second puck joins the game (up to three at once).</span></li>
-          <li><i style="background:var(--amber);box-shadow:0 0 8px var(--amber)"></i><span><b>Shield</b>: a barrier covers your goal and blocks one shot (or lasts 10 seconds).</span></li>
-        </ul>
-        <p>Power-ups appear in the centre zone. Whoever touched the puck last gets the power-up when the puck hits it.</p>
-        <p><b>Install as an app:</b> in Chrome or Edge, use the <b>Install app</b> button (or the install icon in the address bar). On an iPhone or iPad, open this page in Safari, tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
-        <p><b>Online play</b> connects the two devices directly. A free matchmaking service only introduces them. Some school or office networks block direct connections; if a game won't connect, try another Wi-Fi network or mobile data.</p>
-      </details>
-    </aside>
-  </main>
+  <!-- 9. How to Play Rules Overlay -->
+  <section class="screen" id="overlayRules" hidden>
+    <div class="row space-between">
+      <h2 style="margin:0;font-family:var(--f-display);font-size:1.2rem">HOW TO PLAY</h2>
+      <button class="btn ghost" id="btnCloseRules" type="button" style="padding:6px 12px;min-height:36px">Close</button>
+    </div>
+    <div class="card">
+      <b>Objective & Rules</b>
+      <p>Defend your goal and smash the puck into your opponent's pocket. First player to 7 goals wins the match.</p>
+      <p>Keep your mallet on your own half of the rink. A fast-moving mallet strikes with massive impulse!</p>
+    </div>
+    <div class="card">
+      <b>Power-ups</b>
+      <p>Hit the floating orbs in the centre zone to trigger game-changing powers:</p>
+      <ul style="margin:4px 0;padding-left:18px;display:grid;gap:6px;font-size:14px">
+        <li><span style="color:var(--ice)">❄️ Freeze:</span> Slows your opponent's mallet speed by 50% for 5 seconds.</li>
+        <li><span style="color:var(--lime)">⚡ Multi-puck:</span> Launches an extra puck onto the rink (up to 3 simultaneous pucks).</li>
+        <li><span style="color:var(--amber)">🛡️ Shield:</span> Barrier seals your goal to block a direct strike or lasts 10 seconds.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <b>Controls</b>
+      <p><b>Touch (Mobile/Tablet):</b> Drag anywhere on your half to guide your mallet.</p>
+      <p><b>Mouse & Keyboard (Laptop):</b> Cyan steers with Mouse or Arrow Keys. Magenta uses <kbd>W A S D</kbd>. Press <kbd>P</kbd> or <kbd>Esc</kbd> to pause.</p>
+    </div>
+    <button class="btn c1" id="btnDoneRules" type="button">Got It</button>
+  </section>
+
 </div>
 
 <script>
@@ -240,18 +723,29 @@ const COL = ['#29f0ff', '#ff3ccf'];
 const PU_COL = { freeze:'#8fe3ff', multi:'#b8ff3c', shield:'#ffc23d' };
 const PU_NAME = { freeze:'FREEZE', multi:'MULTI-PUCK', shield:'SHIELD' };
 const AI_SPEED = [0, 0.36, 0.58, 0.86];
-const $ = id => document.getElementById(id);
-const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const $ = id => typeof document !== 'undefined' ? document.getElementById(id) : null;
+const reduceMotion = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const coarse = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
-const cleanName = s => typeof s === 'string' ? s.replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, 14) : '';
+const cleanName = s => typeof s === 'string' ? s.replace(/<[^>]*>/g, '').replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, '').trim().slice(0, 14) : '';
 
 /* ---------------- Game model ---------------- */
 function newGame(names){
   return {
     phase:'countdown', t:3, sc:[0, 0], pucks:[], pu:null, puTimer:rand(5, 8), fz:[0, 0], sh:[0, 0], names, winner:null, serveTo:Math.random() < 0.5 ? 0 : 1,
     pd:[{ x:W / 2, y:H - 130, vx:0, vy:0, tx:W / 2, ty:H - 130, sp:1 }, { x:W / 2, y:130, vx:0, vy:0, tx:W / 2, ty:130, sp:1 }],
-    evN:0, events:[], time:0,
+    evN:0, events:[], time:0, flip:false,
+    stats:{
+      shots:[0, 0],
+      fastestShot:[0, 0],
+      saves:[0, 0],
+      powerUps:[0, 0],
+      touchTime:[0, 0],
+      rallyHits:0,
+      maxRally:0
+    }
   };
 }
 function emit(g, k, p, extra){ g.evN++; g.events.push({ n:g.evN, k, p, x:extra }); if (g.events.length > 12) g.events.shift(); }
@@ -264,16 +758,16 @@ function clampMallet(i, x, y){
   const my = i === 0 ? clamp(y, H / 2 + MR * 0.25, H - MR) : clamp(y, MR, H / 2 - MR * 0.25);
   return [mx, my];
 }
-function moveMallet(m, i, fz, dt){
+function moveMallet(m, i, fz, dt, sensitivity = 1.0){
   const [tx, ty] = clampMallet(i, m.tx, m.ty);
   const dx = tx - m.x, dy = ty - m.y, d = Math.hypot(dx, dy);
-  const maxStep = MALLET_V * (m.sp || 1) * (fz > 0 ? 0.5 : 1) * dt;
+  const maxStep = MALLET_V * (m.sp || 1) * sensitivity * (fz > 0 ? 0.5 : 1) * dt;
   const px = m.x, py = m.y;
   if (d <= maxStep){ m.x = tx; m.y = ty; } else { m.x += dx / d * maxStep; m.y += dy / d * maxStep; }
   m.vx = (m.x - px) / dt; m.vy = (m.y - py) / dt;
   return [px, py];
 }
-function step(g, dt){
+function step(g, dt, sensitivity = 1.0){
   g.time += dt;
   if (g.phase === 'countdown'){
     g.t -= dt;
@@ -283,8 +777,15 @@ function step(g, dt){
     if (g.t <= 0){ g.phase = 'play'; serve(g, g.serveTo); }
   }
   for (let i = 0; i < 2; i++){ if (g.fz[i] > 0) g.fz[i] = Math.max(0, g.fz[i] - dt); if (g.sh[i] > 0) g.sh[i] = Math.max(0, g.sh[i] - dt); }
-  const prev = [moveMallet(g.pd[0], 0, g.fz[0], dt), moveMallet(g.pd[1], 1, g.fz[1], dt)];
+  const prev = [moveMallet(g.pd[0], 0, g.fz[0], dt, sensitivity), moveMallet(g.pd[1], 1, g.fz[1], dt, sensitivity)];
   if (g.phase !== 'play' && g.phase !== 'goal') return;
+
+  // Track possession
+  if (g.stats && g.pucks.length){
+    const mainPuck = g.pucks[0];
+    if (mainPuck.last === 0) g.stats.touchTime[0] += dt;
+    else if (mainPuck.last === 1) g.stats.touchTime[1] += dt;
+  }
 
   // power-ups
   if (!g.pu && g.phase === 'play'){
@@ -324,7 +825,19 @@ function step(g, dt){
           const rvx = p.vx - g.pd[i].vx, rvy = p.vy - g.pd[i].vy, vn = rvx * nx + rvy * ny;
           if (vn < 0){
             p.vx -= (1 + E_MALLET) * vn * nx; p.vy -= (1 + E_MALLET) * vn * ny;
-            p.last = i; emit(g, 'hit', i, Math.round(-vn));
+            p.last = i;
+            const spd = Math.hypot(p.vx, p.vy);
+            const kmh = Math.round(spd * 0.065);
+            if (g.stats){
+              g.stats.shots[i]++;
+              g.stats.fastestShot[i] = Math.max(g.stats.fastestShot[i], kmh);
+              g.stats.rallyHits++;
+              g.stats.maxRally = Math.max(g.stats.maxRally, g.stats.rallyHits);
+              // Save detection: if heading toward goal before hit
+              const headingHome = (i === 0 && rvy > 120 && p.y > H - 260) || (i === 1 && rvy < -120 && p.y < 260);
+              if (headingHome) g.stats.saves[i]++;
+            }
+            emit(g, 'hit', i, kmh);
           }
         }
       }
@@ -333,11 +846,11 @@ function step(g, dt){
       if (p.x > W - PR){ p.x = W - PR; if (p.vx > 0){ p.vx = -p.vx * E_WALL; emit(g, 'wall', -1); } }
       // end walls, goal mouths, shields, posts
       const inMouth = p.x > GX0 + 4 && p.x < GX1 - 4;
-      for (const end of [0, 1]){                         // end 0 = top wall (player 1's goal), end 1 = bottom wall (player 0's goal)
+      for (const end of [0, 1]){
         const owner = end === 0 ? 1 : 0;
-        const y0 = end === 0 ? 0 : H, sgn = end === 0 ? 1 : -1;   // sgn points into the rink
-        const depth = (p.y - y0) * sgn;                  // distance from the goal line into the rink
-        if (depth < 0 && inMouth) p.x = clamp(p.x, GX0 + PR * 0.6, GX1 - PR * 0.6);   // inside the goal pocket
+        const y0 = end === 0 ? 0 : H, sgn = end === 0 ? 1 : -1;
+        const depth = (p.y - y0) * sgn;
+        if (depth < 0 && inMouth) p.x = clamp(p.x, GX0 + PR * 0.6, GX1 - PR * 0.6);
         if (depth < PR){
           if (inMouth && g.sh[owner] > 0 && p.vy * sgn < 0 && depth > -PR){
             p.y = y0 + sgn * PR; p.vy = -p.vy * E_WALL; g.sh[owner] = 0; emit(g, 'shield', owner);
@@ -357,10 +870,15 @@ function step(g, dt){
       if (p.y < -PR * 1.1 || p.y > H + PR * 1.1){
         const scorer = p.y < 0 ? 0 : 1;
         g.pucks.splice(k, 1);
+        if (g.stats) g.stats.rallyHits = 0;
         if (g.phase === 'play' || g.phase === 'goal'){
           g.sc[scorer]++;
           emit(g, 'goal', scorer);
-          if (g.sc[scorer] >= WIN){ g.phase = 'over'; g.winner = scorer; g.pucks = []; g.pu = null; emit(g, 'win', scorer); return; }
+          if (g.sc[scorer] >= WIN){
+            g.phase = 'over'; g.winner = scorer; g.pucks = []; g.pu = null; emit(g, 'win', scorer);
+            recordCareerStats(g);
+            return;
+          }
           if (!g.pucks.length){ g.phase = 'goal'; g.t = 1.3; g.serveTo = 1 - scorer; g.pu = null; g.puTimer = rand(5, 8); }
         }
         continue;
@@ -368,6 +886,7 @@ function step(g, dt){
       // power-up pickup
       if (g.pu && Math.hypot(p.x - g.pu.x, p.y - g.pu.y) < PR + PU_R && p.last >= 0){
         applyPowerUp(g, g.pu, p.last);
+        if (g.stats) g.stats.powerUps[p.last]++;
         g.pu = null; g.puTimer = rand(7, 11);
       }
     }
@@ -397,10 +916,10 @@ function applyPowerUp(g, pu, who){
 }
 
 /* ---------------- Computer player ---------------- */
-function aiThink(g, i, level){
+function aiThink(g, i, lvl){
   const me = g.pd[i], sgn = i === 1 ? 1 : -1, own = i === 1 ? 0 : H, opp = i === 1 ? H : 0;
-  const ly = y => i === 1 ? y : H - y;                       // distance from own goal line
-  me.sp = AI_SPEED[level];
+  const ly = y => i === 1 ? y : H - y;
+  me.sp = AI_SPEED[lvl];
   let pk = null, best = Infinity;
   for (const p of g.pucks){
     const threat = ly(p.y) - (p.vy * sgn < 0 ? 200 : 0);
@@ -408,21 +927,18 @@ function aiThink(g, i, level){
   }
   const home = [W / 2, own + sgn * 120];
   if (!pk || g.phase !== 'play'){ me.tx = home[0]; me.ty = home[1]; return; }
-  const jitter = level === 1 ? Math.sin(g.time * 1.9 + i) * 55 : level === 2 ? Math.sin(g.time * 1.3 + i) * 18 : 0;
+  const jitter = lvl === 1 ? Math.sin(g.time * 1.9 + i) * 55 : lvl === 2 ? Math.sin(g.time * 1.3 + i) * 18 : 0;
   if (ly(pk.y) < H / 2 + 20 && ly(pk.y) > ly(me.y) - 6){
-    // attack: get behind the puck on the line to the opponent's goal and drive through it
-    const ax = W / 2 + (level === 3 ? rand(-60, 60) : 0), dx = ax - pk.x, dy = opp - pk.y, d = Math.hypot(dx, dy) || 1;
+    const ax = W / 2 + (lvl === 3 ? rand(-60, 60) : 0), dx = ax - pk.x, dy = opp - pk.y, d = Math.hypot(dx, dy) || 1;
     const ux = dx / d, uy = dy / d, close = Math.hypot(me.x - pk.x, me.y - pk.y) < PR + MR + 50;
     me.tx = pk.x - ux * (PR + MR - (close ? 60 : 4)) + jitter;
     me.ty = pk.y - uy * (PR + MR - (close ? 60 : 4));
   } else if (ly(pk.y) <= ly(me.y) - 6){
-    // the puck slipped behind: get back on the goal side of it
     me.tx = pk.x + (pk.x < W / 2 ? 1 : -1) * (PR + MR);
     me.ty = pk.y - sgn * (PR + MR + 10);
   } else {
-    // defend: line up with where the puck will cross our guard line
     let x = pk.x;
-    if (pk.vy * sgn < 0 && level >= 2){
+    if (pk.vy * sgn < 0 && lvl >= 2){
       const t = (ly(pk.y) - 120) / Math.abs(pk.vy);
       x = pk.x + pk.vx * Math.min(t, 1.5);
       const span = W - 2 * PR; let u = (x - PR) % (2 * span); if (u < 0) u += 2 * span; x = PR + (u > span ? 2 * span - u : u);
@@ -432,56 +948,133 @@ function aiThink(g, i, level){
   }
 }
 
-/* ---------------- Session ---------------- */
-let mode = 'demo';                // demo | bot | local | online
-let role = null;                  // host | guest | spectator
-let level = 2, g = newGame(['Cyan', 'Magenta']), paused = false;
-g.phase = 'play'; serve(g, 0);
-let room = null, groom = null, unsubs = [], code = null, myNick = '', mePeer = null;
-let oppAway = false, hostMissing = false, connected = true, findTimer = 0, guestPeer = null;
-let remote = null, remoteAt = 0, lastEvSeen = 0;               // guest's view of the host's game
-const guestMallet = { x:W / 2, y:130, vx:0, vy:0, tx:W / 2, ty:130, sp:1 };
-const smooth = { pd0:{ x:W / 2, y:H - 130 } };
-const keys = new Set();
+/* ---------------- Storage & Settings ---------------- */
+const KEY = 'neon-air-hockey-v2';
+const STATS_KEY = 'neon-air-hockey-stats-v2';
 
-/* ---------------- Storage ---------------- */
-const KEY = 'neon-air-hockey-v1';
-function loadPrefs(){ try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
-function savePrefs(p){ try { localStorage.setItem(KEY, JSON.stringify({ ...loadPrefs(), ...p })); } catch (e) {} }
+const defaultSettings = {
+  sensitivity: 1.0,
+  sndVol: 0.8,
+  musicVol: 0.5,
+  vibrate: true,
+  effects: true,
+  colorblind: false,
+  leftHanded: false,
+  showSpeed: true,
+  quality: 'high',
+  lv: 2,
+  oName: ''
+};
 
-/* ---------------- Sound ---------------- */
+function loadSettings(){
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(KEY) : null;
+    return raw ? { ...defaultSettings, ...JSON.parse(raw) } : { ...defaultSettings };
+  } catch (e) { return { ...defaultSettings }; }
+}
+function saveSettings(patch){
+  try {
+    if (typeof localStorage !== 'undefined'){
+      const cur = loadSettings();
+      localStorage.setItem(KEY, JSON.stringify({ ...cur, ...patch }));
+    }
+  } catch (e) {}
+}
+
+function loadCareerStats(){
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STATS_KEY) : null;
+    return raw ? JSON.parse(raw) : { matches:0, wins:0, goals:0, fastest:0, rally:0, powerups:0 };
+  } catch (e) { return { matches:0, wins:0, goals:0, fastest:0, rally:0, powerups:0 }; }
+}
+function recordCareerStats(g){
+  if (mode === 'demo') return;
+  const s = loadCareerStats();
+  s.matches++;
+  if (g.winner === mySide() || (mode === 'local' && g.winner === 0)) s.wins++;
+  s.goals += g.sc[0];
+  if (g.stats){
+    s.fastest = Math.max(s.fastest, g.stats.fastestShot[0], g.stats.fastestShot[1]);
+    s.rally = Math.max(s.rally, g.stats.maxRally || 0);
+    s.powerups += (g.stats.powerUps[0] + g.stats.powerUps[1]);
+  }
+  try { if (typeof localStorage !== 'undefined') localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch (e) {}
+}
+
+/* ---------------- Audio & Haptics ---------------- */
 let actx = null, lastHitSound = 0;
 function tone(f0, f1, dur, type, vol, delay){
-  if (!$('snd').checked) return;
+  const sets = loadSettings();
+  if (sets.sndVol <= 0.01) return;
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     const t = actx.currentTime + (delay || 0), o = actx.createOscillator(), gn = actx.createGain();
     o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
-    gn.gain.setValueAtTime(vol, t); gn.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+    const finalVol = vol * sets.sndVol;
+    gn.gain.setValueAtTime(finalVol, t); gn.gain.exponentialRampToValueAtTime(0.0008, t + dur);
     o.connect(gn); gn.connect(actx.destination); o.start(t); o.stop(t + dur + 0.02);
   } catch (e) {}
 }
+function vibrate(ms){
+  const sets = loadSettings();
+  if (!sets.vibrate || typeof navigator === 'undefined' || !navigator.vibrate) return;
+  try { navigator.vibrate(ms); } catch (e) {}
+}
 function playEvent(ev){
   const now = performance.now();
-  if (ev.k === 'hit'){ if (now - lastHitSound > 45){ lastHitSound = now; tone(320 + Math.min(600, (ev.x || 0) * 0.35), 160, 0.08, 'square', 0.045); } }
-  else if (ev.k === 'wall'){ if (now - lastHitSound > 45){ lastHitSound = now; tone(210, 140, 0.06, 'triangle', 0.05); } }
-  else if (ev.k === 'goal'){ [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.12, 'square', 0.045, i * 0.09)); flash(ev.p === mySide() || mode === 'local' || mode === 'demo' ? 'GOAL!' : 'GOAL!', COL[ev.p], 1300); }
-  else if (ev.k === 'pu'){ tone(300, 1100, 0.28, 'sawtooth', 0.035); flash(PU_NAME[ev.x] || 'POWER-UP', PU_COL[ev.x] || '#fff', 1100); }
-  else if (ev.k === 'shield'){ tone(180, 420, 0.16, 'square', 0.05); flash('BLOCKED!', PU_COL.shield, 900); }
-  else if (ev.k === 'spawn'){ tone(700, 900, 0.08, 'sine', 0.03); }
-  else if (ev.k === 'win'){ [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, 0.18, 'triangle', 0.05, i * 0.12)); }
+  if (ev.k === 'hit'){
+    if (now - lastHitSound > 45){
+      lastHitSound = now;
+      tone(320 + Math.min(600, (ev.x || 0) * 4), 160, 0.08, 'square', 0.045);
+      vibrate(15);
+    }
+  } else if (ev.k === 'wall'){
+    if (now - lastHitSound > 45){
+      lastHitSound = now;
+      tone(210, 140, 0.06, 'triangle', 0.05);
+      vibrate(10);
+    }
+  } else if (ev.k === 'goal'){
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.12, 'square', 0.045, i * 0.09));
+    vibrate([40, 40, 80]);
+    flash('GOAL!', COL[ev.p], 1300);
+  } else if (ev.k === 'pu'){
+    tone(300, 1100, 0.28, 'sawtooth', 0.035);
+    flash(PU_NAME[ev.x] || 'POWER-UP', PU_COL[ev.x] || '#fff', 1100);
+    vibrate(25);
+  } else if (ev.k === 'shield'){
+    tone(180, 420, 0.16, 'square', 0.05);
+    flash('BLOCKED!', PU_COL.shield, 900);
+    vibrate(20);
+  } else if (ev.k === 'spawn'){
+    tone(700, 900, 0.08, 'sine', 0.03);
+  } else if (ev.k === 'win'){
+    [784, 988, 1175, 1568].forEach((f, i) => tone(f, f, 0.18, 'triangle', 0.05, i * 0.12));
+    vibrate([60, 50, 60, 50, 120]);
+  }
 }
 let flashMsg = null;
 function flash(text, color, ms){ if (mode === 'demo') return; flashMsg = { text, color, until:performance.now() + ms, start:performance.now() }; }
 
-/* ---------------- Views ---------------- */
+/* ---------------- Session & View Routing ---------------- */
+let mode = 'demo';                // demo | bot | local | online
+let currentScreen = 'title';      // title | modes | setup | online | match | results
+let role = null;                  // host | guest | spectator
+let level = 2, g = newGame(['Cyan', 'Magenta']), paused = false;
+g.phase = 'play'; serve(g, 0);
+let room = null, groom = null, code = null, myNick = '';
+let oppAway = false, hostMissing = false, connected = true, findTimer = 0;
+let remote = null, remoteAt = 0, lastEvSeen = 0;
+const guestMallet = { x:W / 2, y:130, vx:0, vy:0, tx:W / 2, ty:130, sp:1 };
+const smooth = { pd0:{ x:W / 2, y:H - 130 } };
+const keys = new Set();
+
 function mySide(){ if (mode === 'online') return role === 'guest' ? 1 : role === 'host' ? 0 : -1; if (mode === 'bot') return 0; return -1; }
 function flipped(){ return mode === 'online' && role === 'guest'; }
 function viewState(){
   if (mode !== 'online' || role === 'host') return g;
   return remoteView();
 }
-// The guest renders the host's game, extrapolating pucks between updates and showing its own mallet locally.
 function remoteView(){
   const r = remote;
   if (!r) return null;
@@ -491,53 +1084,125 @@ function remoteView(){
   smooth.pd0.x += (r.pd[0][0] - smooth.pd0.x) * Math.min(1, a * 8); smooth.pd0.y += (r.pd[0][1] - smooth.pd0.y) * Math.min(1, a * 8);
   const pd = [{ x:smooth.pd0.x, y:smooth.pd0.y }, role === 'guest' ? guestMallet : { x:r.pd[1][0], y:r.pd[1][1] }];
   return { phase:r.ph, t:r.t, sc:r.sc, pucks, pu:r.pu ? { type:PU_TYPES[r.pu[0]], x:r.pu[1], y:r.pu[2], life:r.pu[3] } : null,
-    fz:r.fz, sh:r.sh, names:r.nm, winner:r.w, pd, time:performance.now() / 1000 };
+    fz:r.fz, sh:r.sh, names:r.nm, winner:r.w, pd, time:performance.now() / 1000, stats:r.st || null };
+}
+
+/* Screen Transitions */
+const ALL_SCREENS = ['screenTitle', 'screenModes', 'screenSetup', 'screenOnline', 'screenResults', 'overlayPause', 'overlaySettings', 'overlayStats', 'overlayRules'];
+
+function setScreen(id){
+  currentScreen = id;
+  const hud = $('hudOverlay');
+  if (hud) hud.hidden = (id !== 'match');
+
+  ALL_SCREENS.forEach(sid => {
+    const el = $(sid);
+    if (!el) return;
+    if (sid === id){
+      el.hidden = false;
+      el.classList.remove('exiting');
+      el.classList.add('entering');
+      requestAnimationFrame(() => el.classList.remove('entering'));
+    } else {
+      el.hidden = true;
+    }
+  });
+
+  const app = $('gameApp');
+  if (app) app.classList.toggle('match-mode', id === 'match');
+  sizeRink();
+}
+
+function showOverlay(id){
+  const el = $(id);
+  if (el) {
+    el.hidden = false;
+    el.classList.add('entering');
+    requestAnimationFrame(() => el.classList.remove('entering'));
+  }
+}
+function hideOverlay(id){
+  const el = $(id);
+  if (el) el.hidden = true;
 }
 
 /* ---------------- Rendering ---------------- */
-const cv = $('rink'), ctx = cv.getContext('2d');
+const cv = typeof document !== 'undefined' ? $('rink') : null, ctx = cv && cv.getContext ? cv.getContext('2d') : null;
 let cssW = 300, cssH = 480, dpr = 1;
-const coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-const isNarrow = () => window.innerWidth < 820;
+const isNarrow = () => typeof window !== 'undefined' ? window.innerWidth < 820 : false;
 let landscape = false;
 const rinkScale = () => landscape ? cssH / W : cssW / W;
+
 function sizeRink(){
-  const narrow = isNarrow(), playing = mode !== 'demo';
-  // the frame may be taller than the phone screen, so never size from more than the real screen height
-  // On a laptop the page sits inside the browser and Claude's own bars, so leave room for them.
-  const sh = (window.screen && window.screen.availHeight) || 100000;
-  const vh = Math.min(window.innerHeight || 800, coarse ? sh : sh - 170);
-  const maxH = narrow ? (playing ? vh - 120 : vh * 0.66) : (playing ? vh - 30 : vh - 150);
-  const avail = narrow ? Math.min(window.innerWidth - 32, 560) : Math.min(560, window.innerWidth - 32 - 360);
+  if (!cv || typeof window === 'undefined') return;
+  const sets = loadSettings();
+  const narrow = isNarrow();
   landscape = !narrow;
+
+  const winW = window.innerWidth;
+  const winH = window.innerHeight;
+  const pad = 16;
+  const maxAvailW = winW - pad;
+  const maxAvailH = winH - pad;
+
   let ww, hh;
   if (landscape){
-    // laptops and desktops: lay the rink on its side so it uses the wide screen
-    const availW = Math.min(1100, window.innerWidth - 32 - 360);
-    hh = Math.max(240, maxH); ww = hh * H / W;
-    if (ww > availW){ ww = Math.max(380, availW); hh = ww * W / H; }
+    // 960 (rink length) x 600 (rink width) -> aspect ratio 1.6
+    const ratio = H / W; // 1.6
+    if (maxAvailW / maxAvailH > ratio){
+      hh = maxAvailH; ww = hh * ratio;
+    } else {
+      ww = maxAvailW; hh = ww / ratio;
+    }
   } else {
-    hh = Math.max(300, maxH); ww = hh * W / H;
-    if (ww > avail){ ww = Math.max(200, avail); hh = ww * H / W; }
+    // 600 x 960 -> aspect ratio 0.625
+    const ratio = W / H; // 0.625
+    if (maxAvailW / maxAvailH > ratio){
+      hh = maxAvailH; ww = hh * ratio;
+    } else {
+      ww = maxAvailW; hh = ww / ratio;
+    }
   }
-  const nw = Math.floor(ww), nh = Math.floor(hh), nd = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
+
+  const nw = Math.floor(ww), nh = Math.floor(hh);
+  const nd = Math.min(coarse ? 1.5 : 2, window.devicePixelRatio || 1);
   if (nw === cssW && nh === cssH && nd === dpr && bgFor) return;
   cssW = nw; cssH = nh; dpr = nd;
+
   cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+
+  const wrapper = $('rinkWrapper');
+  if (wrapper){
+    wrapper.style.width = cssW + 'px';
+    wrapper.style.height = cssH + 'px';
+  }
+
   bgFor = '';
+
+  // Rotate hint check (phone portrait)
+  const rotateHint = $('rotateHint');
+  if (rotateHint && typeof localStorage !== 'undefined'){
+    const dismissed = localStorage.getItem('rotateHintDismissed');
+    if (!dismissed && narrow && window.innerHeight > window.innerWidth && currentScreen === 'match'){
+      rotateHint.hidden = false;
+    } else {
+      rotateHint.hidden = true;
+    }
+  }
 }
-// The rink markings never move, so they are drawn once into their own canvas and copied each frame.
-const bg = document.createElement('canvas'), bgx = bg.getContext('2d');
+
+const bg = typeof document !== 'undefined' ? document.createElement('canvas') : null, bgx = bg && bg.getContext ? bg.getContext('2d') : null;
 let bgFor = '';
 function drawBackground(){
+  if (!bg || !bgx) return;
   const key = cssW + 'x' + cssH + '@' + dpr + (flipped() ? 'f' : '') + (landscape ? 'L' : '');
   if (key === bgFor) return;
   bgFor = key;
   bg.width = cv.width; bg.height = cv.height;
   const k = rinkScale(), c = bgx;
   c.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
-  if (landscape) c.transform(0, 1, -1, 0, H, 0);          // rink y runs left to right; your goal on the left
+  if (landscape) c.transform(0, 1, -1, 0, H, 0);
   if (flipped()){ c.translate(W, H); c.rotate(Math.PI); }
   const rr = (x, y, w, h, r) => { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); };
   c.fillStyle = '#0a0918'; rr(0, 0, W, H, 34); c.fill();
@@ -560,10 +1225,18 @@ function drawBackground(){
   }
   c.shadowBlur = 0;
 }
+
 const trails = new Map();
-function glow(color, blur){ ctx.shadowColor = color; ctx.shadowBlur = (reduceMotion || coarse ? blur * 0.5 : blur) * dpr; }
-function noGlow(){ ctx.shadowBlur = 0; }
+function glow(color, blur){
+  if (!ctx) return;
+  const sets = loadSettings();
+  if (sets.quality === 'low' || reduceMotion) return;
+  ctx.shadowColor = color; ctx.shadowBlur = blur * dpr;
+}
+function noGlow(){ if (ctx) ctx.shadowBlur = 0; }
+
 function render(){
+  if (!ctx) return;
   const vs = viewState();
   const k = rinkScale(), S = Math.min(cssW, cssH);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -606,26 +1279,10 @@ function render(){
   for (const i of [0, 1]) drawMallet(vs.pd[i], i, vs.fz[i] > 0, now);
   ctx.restore();
 
-  // screen-space text: score watermarks, countdowns, flashes
-  const topIdx = flipped() ? 0 : 1, botIdx = 1 - topIdx;
-  ctx.globalAlpha = 0.09;
-  if (landscape){
-    drawText(String(vs.sc[topIdx]), cssW * 0.75, cssH / 2, S * 0.5, COL[topIdx]);
-    drawText(String(vs.sc[botIdx]), cssW * 0.25, cssH / 2, S * 0.5, COL[botIdx]);
-  } else {
-    drawText(String(vs.sc[topIdx]), cssW / 2, cssH * 0.25, S * 0.32, COL[topIdx]);
-    drawText(String(vs.sc[botIdx]), cssW / 2, cssH * 0.75, S * 0.32, COL[botIdx]);
-  }
-  ctx.globalAlpha = 1;
+  // Screen space match overlays
   if (mode !== 'demo'){
     if (vs.phase === 'countdown') drawText(String(Math.max(1, Math.ceil(vs.t))), cssW / 2, cssH / 2, S * 0.22, '#ffffff', true);
     if (vs.phase === 'wait') drawText('WAITING FOR OPPONENT', cssW / 2, cssH / 2, Math.min(22, S * 0.05), '#ece9ff', true);
-    if (vs.phase === 'over' && vs.winner !== null){
-      const nm = (vs.names[vs.winner] || '').toUpperCase();
-      drawText(nm + ' WINS', cssW / 2, cssH / 2 - 10, Math.min(40, S * 0.09), COL[vs.winner], true);
-      drawText(vs.sc[0] + ' – ' + vs.sc[1], cssW / 2, cssH / 2 + S * 0.08, Math.min(26, S * 0.06), '#ece9ff');
-    }
-    if (paused && mode !== 'online') drawText('PAUSED', cssW / 2, cssH / 2, Math.min(40, S * 0.1), '#ece9ff', true);
   }
   if (flashMsg){
     const t = performance.now();
@@ -637,16 +1294,8 @@ function render(){
       ctx.globalAlpha = 1;
     }
   }
-  if (mode === 'demo'){
-    ctx.fillStyle = 'rgba(6,5,13,0.45)'; ctx.fillRect(0, cssH / 2 - 34, cssW, 68);
-    drawText('CHOOSE A GAME', cssW / 2, cssH / 2, Math.min(24, S * 0.065), '#ffffff', true);
-  }
 }
-function roundRect(x, y, w, h, r){
-  ctx.beginPath(); ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-}
+
 function drawText(text, x, y, size, color, glowy){
   ctx.font = `400 ${size}px Audiowide, "Segoe UI", sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -701,58 +1350,78 @@ function drawPowerUp(pu, now){
   noGlow(); ctx.restore();
 }
 
-/* ---------------- HUD & panels ---------------- */
-let hudKey = '';
-function updateHud(){
+/* ---------------- HUD Updating ---------------- */
+function updateInGameHud(){
   const vs = viewState();
-  const names = vs ? vs.names : g.names, sc = vs ? vs.sc : [0, 0];
-  const fx = i => {
-    if (!vs || mode === 'demo') return '';
-    const parts = [];
-    if (vs.fz[i] > 0) parts.push(`Frozen ${Math.ceil(vs.fz[i])}s`);
-    if (vs.sh[i] > 0) parts.push(`Shield ${Math.ceil(vs.sh[i])}s`);
-    return parts.join(' · ');
-  };
-  const key = [names[0], names[1], sc[0], sc[1], fx(0), fx(1), mode].join('|');
-  if (key === hudKey) return;
-  hudKey = key;
-  for (const i of [0, 1]){ $('nm' + i).textContent = names[i]; $('pt' + i).textContent = mode === 'demo' ? 0 : sc[i]; $('fx' + i).textContent = fx(i); }
-}
-function showPanel(id){ for (const p of ['pMenu', 'pOnline', 'pLobby', 'pPlay', 'pOver']) $(p).hidden = p !== id; }
-let menuScreen = 'menu';
-function updatePanels(){
-  const pill = $('conn'); pill.hidden = mode !== 'online';
-  if (mode === 'online'){ pill.className = 'pill ' + (connected ? 'on' : 'off'); $('connText').textContent = (connected ? 'Online' : 'Reconnecting…') + (code ? ' · ' + code : '') + (role === 'spectator' ? ' · watching' : ''); }
-  cv.classList.toggle('menu', mode === 'demo');
-  if (mode === 'demo'){ showPanel(menuScreen === 'online' ? 'pOnline' : 'pMenu'); return; }
-  const vs = viewState();
-  if (mode === 'online' && role === 'host' && g.phase === 'wait'){ showPanel('pLobby'); $('lobbyHost').hidden = false; $('lobbyGuest').hidden = true; $('lobbyCode').textContent = code; return; }
-  if (mode === 'online' && role !== 'host' && !remote){ showPanel('pLobby'); $('lobbyHost').hidden = true; $('lobbyGuest').hidden = false; $('lobbyFind').textContent = `Looking for game ${code}…`; return; }
-  if (vs && vs.phase === 'over'){
-    showPanel('pOver');
-    const w = vs.winner;
-    $('overTitle').textContent = w === null ? 'Game over' : `${vs.names[w]} wins!`;
-    $('overText').textContent = `Final score ${vs.sc[0]} – ${vs.sc[1]}.`;
-    const again = $('again');
-    if (mode === 'online' && role !== 'host'){ again.hidden = true; $('overText').textContent += ' Waiting for the host to start a rematch.'; }
-    else { again.hidden = false; again.textContent = mode === 'online' ? 'Rematch' : 'Play again'; }
-    return;
+  if (!vs || currentScreen !== 'match') return;
+
+  $('hudScore0').textContent = vs.sc[0];
+  $('hudScore1').textContent = vs.sc[1];
+  $('hudName0').textContent = vs.names[0] || 'Cyan';
+  $('hudName1').textContent = vs.names[1] || 'Magenta';
+
+  // Power-up badge with circular countdown timer
+  for (let i = 0; i < 2; i++){
+    const badge = $('hudPuBadge' + i), ring = $('hudPuRing' + i), icon = $('hudPuIcon' + i);
+    if (!badge || !ring || !icon) continue;
+    let activeType = null, maxDuration = 1, curTime = 0;
+    if (vs.fz[i] > 0){ activeType = 'freeze'; maxDuration = 5; curTime = vs.fz[i]; }
+    else if (vs.sh[i] > 0){ activeType = 'shield'; maxDuration = 10; curTime = vs.sh[i]; }
+
+    if (activeType){
+      badge.hidden = false;
+      badge.className = 'pu-badge ' + activeType;
+      icon.textContent = activeType === 'freeze' ? '❄️' : '🛡️';
+      const pct = Math.max(0, Math.min(100, Math.round((curTime / maxDuration) * 100)));
+      ring.setAttribute('stroke-dasharray', `${pct}, 100`);
+    } else {
+      badge.hidden = true;
+    }
   }
-  showPanel('pPlay');
-  $('pauseBtn').hidden = mode === 'online';
-  $('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
-  const hint = $('ctlHint');
-  const near = landscape ? 'left' : 'bottom', far = landscape ? 'right' : 'top';
-  if (mode === 'local') hint.innerHTML = `Cyan (${near}): mouse, arrow keys or a finger on the ${near} half. Magenta (${far}): <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or a finger on the ${far} half.`;
-  else if (role === 'spectator') hint.textContent = 'You are watching this match.';
-  else hint.textContent = (coarse ? `Drag your finger on the ${near} half to move your mallet. Your goal is on the ${near}.` : `Move your mallet with the mouse${role === 'guest' ? '' : ' (or arrow keys)'}. Your goal is on the ${near}.`) + (mode === 'bot' && !coarse ? ' Press P to pause.' : '');
-  const away = $('away');
-  if (mode === 'online' && role === 'host' && oppAway){ away.textContent = 'Your opponent lost connection. The match is paused until they rejoin with code ' + code + '.'; away.hidden = false; }
-  else if (mode === 'online' && role !== 'host' && hostMissing){ away.textContent = 'The host has left or lost connection.'; away.hidden = false; }
-  else away.hidden = true;
+
+  // Fullscreen sync
+  const fsBtn = $('hudFullscreenBtn');
+  if (fsBtn && typeof document !== 'undefined'){
+    const isFs = !!document.fullscreenElement;
+    fsBtn.setAttribute('aria-label', isFs ? 'Exit Fullscreen' : 'Enter Fullscreen');
+  }
+
+  // Check Game Over Transition to Results Screen
+  if (vs.phase === 'over' && vs.winner !== null && currentScreen === 'match'){
+    showResultsScreen(vs);
+  }
 }
 
-/* ---------------- Input ---------------- */
+function showResultsScreen(vs){
+  const winnerName = vs.names[vs.winner] || (vs.winner === 0 ? 'Cyan' : 'Magenta');
+  $('resWinnerTitle').textContent = `${winnerName.toUpperCase()} WINS!`;
+  $('resWinnerTitle').style.color = COL[vs.winner];
+  $('resScore').textContent = `${vs.sc[0]} – ${vs.sc[1]}`;
+
+  const st = vs.stats || g.stats || { shots:[0, 0], fastestShot:[0, 0], saves:[0, 0], powerUps:[0, 0], touchTime:[0, 0] };
+  const totalTouch = (st.touchTime[0] + st.touchTime[1]) || 1;
+  const p0 = Math.round((st.touchTime[0] / totalTouch) * 100);
+  const p1 = 100 - p0;
+
+  $('resFastestShot').textContent = `${Math.max(st.fastestShot[0] || 0, st.fastestShot[1] || 0)} km/h`;
+  $('resPossession').textContent = `${p0}% / ${p1}%`;
+  $('resShots').textContent = `${st.shots[0]} vs ${st.shots[1]}`;
+  $('resSaves').textContent = `${st.saves[0]} vs ${st.saves[1]}`;
+  $('resPowerUps').textContent = `${st.powerUps[0]} vs ${st.powerUps[1]}`;
+
+  const rematchBtn = $('btnResRematch');
+  if (mode === 'online' && role !== 'host'){
+    rematchBtn.textContent = 'Waiting for host…';
+    rematchBtn.disabled = true;
+  } else {
+    rematchBtn.textContent = 'Rematch';
+    rematchBtn.disabled = false;
+  }
+
+  setScreen('screenResults');
+}
+
+/* ---------------- Input Handling ---------------- */
 const pointerOwner = new Map();
 function rinkPos(e){
   const r = cv.getBoundingClientRect();
@@ -770,7 +1439,6 @@ function controlled(viewY){
 function setTarget(idx, e, v){
   let x = v.x, y = v.y;
   if (e.pointerType !== 'mouse'){
-    // keep the mallet visible beyond the finger, toward the opponent (v is in the unflipped view's coordinates)
     const nearSide = flipped() ? idx === 1 : idx === 0;
     y += nearSide ? -60 : 60;
   }
@@ -779,37 +1447,47 @@ function setTarget(idx, e, v){
     guestMallet.tx = x; guestMallet.ty = y;
   } else { g.pd[idx].tx = x; g.pd[idx].ty = y; }
 }
-cv.addEventListener('pointerdown', e => {
-  if (mode === 'demo') return;
-  const v = rinkPos(e), idx = e.pointerType === 'mouse' && mode === 'local' ? 0 : controlled(v.y);
-  if (idx < 0) return;
-  pointerOwner.set(e.pointerId, idx);
-  try { cv.setPointerCapture(e.pointerId); } catch (_) {}
-  setTarget(idx, e, v); e.preventDefault();
-  if (actx && actx.state === 'suspended') actx.resume();
-});
-cv.addEventListener('pointermove', e => {
-  if (mode === 'demo' || e.pointerType === 'mouse') return;   // the mouse is handled on the whole window below
-  const v = rinkPos(e);
-  if (pointerOwner.has(e.pointerId)) setTarget(pointerOwner.get(e.pointerId), e, v);
-});
-// A mouse keeps steering even when it slips past the rink's edge; the mallet just stops at the boundary.
-window.addEventListener('pointermove', e => {
-  if (mode === 'demo' || e.pointerType !== 'mouse' || paused) return;
-  const v = rinkPos(e);
-  const idx = pointerOwner.has(e.pointerId) ? pointerOwner.get(e.pointerId) : (mode === 'local' ? 0 : controlled(H));
-  if (idx >= 0) setTarget(idx, e, v);
-});
-const release = e => pointerOwner.delete(e.pointerId);
-cv.addEventListener('pointerup', release);
-cv.addEventListener('pointercancel', release);
-window.addEventListener('keydown', e => {
-  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
-  const k = e.key.toLowerCase();
-  if ((k === 'p' || k === 'escape') && (mode === 'bot' || mode === 'local') && g.phase !== 'over'){ paused = !paused; updatePanels(); return; }
-  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k) && mode !== 'demo'){ keys.add(k); e.preventDefault(); }
-});
-window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+function attachInputs(){
+  if (!cv) return;
+  cv.addEventListener('pointerdown', e => {
+    if (mode === 'demo' || currentScreen !== 'match' || paused) return;
+    const v = rinkPos(e), idx = e.pointerType === 'mouse' && mode === 'local' ? 0 : controlled(v.y);
+    if (idx < 0) return;
+    pointerOwner.set(e.pointerId, idx);
+    try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    setTarget(idx, e, v); e.preventDefault();
+    if (actx && actx.state === 'suspended') actx.resume();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (mode === 'demo' || currentScreen !== 'match' || e.pointerType === 'mouse') return;
+    const v = rinkPos(e);
+    if (pointerOwner.has(e.pointerId)) setTarget(pointerOwner.get(e.pointerId), e, v);
+  });
+  window.addEventListener('pointermove', e => {
+    if (mode === 'demo' || currentScreen !== 'match' || e.pointerType !== 'mouse' || paused) return;
+    const v = rinkPos(e);
+    const idx = pointerOwner.has(e.pointerId) ? pointerOwner.get(e.pointerId) : (mode === 'local' ? 0 : controlled(H));
+    if (idx >= 0) setTarget(idx, e, v);
+  });
+  const release = e => pointerOwner.delete(e.pointerId);
+  cv.addEventListener('pointerup', release);
+  cv.addEventListener('pointercancel', release);
+
+  window.addEventListener('keydown', e => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    const k = e.key.toLowerCase();
+    if ((k === 'p' || k === 'escape') && currentScreen === 'match'){
+      togglePause();
+      return;
+    }
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'].includes(k) && mode !== 'demo'){
+      keys.add(k); e.preventDefault();
+    }
+  });
+  window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+}
+
 function keyControl(dt){
   const sp = 1300 * dt;
   const apply = (idx, up, down, left, right) => {
@@ -822,11 +1500,43 @@ function keyControl(dt){
   else if (mode === 'bot' || (mode === 'online' && role === 'host')) apply(0, 'arrowup', 'arrowdown', 'arrowleft', 'arrowright');
 }
 
-/* ---------------- Main loop ---------------- */
-let last = performance.now(), acc = 0, pubAt = 0;
+/* ---------------- Pause System ---------------- */
+let onlinePauseTimer = null, onlinePauseSec = 30, myPausesUsed = 0;
+function togglePause(){
+  if (mode === 'demo' || currentScreen !== 'match') return;
+  if (mode === 'online'){
+    if (!paused && myPausesUsed >= 2) return; // max 2 pauses per match
+    paused = !paused;
+    if (paused) myPausesUsed++;
+    publishPause(paused);
+    updatePauseOverlay();
+  } else {
+    paused = !paused;
+    updatePauseOverlay();
+  }
+}
+function updatePauseOverlay(){
+  const overlay = $('overlayPause');
+  if (paused){
+    overlay.hidden = false;
+    $('btnPauseRestart').hidden = (mode === 'online');
+    if (mode === 'online'){
+      $('pauseOnlineStatus').hidden = false;
+      $('pauseOnlineStatus').textContent = `Online match paused · Pauses remaining: ${2 - myPausesUsed}`;
+    } else {
+      $('pauseOnlineStatus').hidden = true;
+    }
+  } else {
+    overlay.hidden = true;
+  }
+}
+
+/* ---------------- Main Loop ---------------- */
+let last = typeof performance !== 'undefined' ? performance.now() : 0, acc = 0, pubAt = 0;
 function frame(now){
-  requestAnimationFrame(frame);
+  if (typeof requestAnimationFrame !== 'undefined') requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const sets = loadSettings();
   const authoritative = mode === 'demo' || mode === 'bot' || mode === 'local' || (mode === 'online' && role === 'host');
   if (authoritative){
     const running = !paused && !(mode === 'online' && (oppAway || g.phase === 'wait'));
@@ -837,143 +1547,175 @@ function frame(now){
         if (mode === 'demo'){ aiThink(g, 0, 2); aiThink(g, 1, 2); }
         else if (mode === 'bot') aiThink(g, 1, level);
         keyControl(STEP);
-        step(g, STEP);
+        step(g, STEP, sets.sensitivity);
         acc -= STEP;
       }
-      if (mode === 'demo' && (g.phase === 'over' || g.sc[0] + g.sc[1] > 40)){ g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0); }
+      if (mode === 'demo' && (g.phase === 'over' || g.sc[0] + g.sc[1] > 40)){
+        g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0);
+      }
     } else acc = 0;
-    // sounds and flashes for new events
-    for (const ev of g.events){ if (ev.n > lastEvSeen){ if (mode !== 'demo') playEvent(ev); lastEvSeen = ev.n; } }
+
+    for (const ev of g.events){
+      if (ev.n > lastEvSeen){
+        if (mode !== 'demo') playEvent(ev);
+        lastEvSeen = ev.n;
+      }
+    }
     if (mode === 'online' && role === 'host' && conn && now - pubAt > 33){ pubAt = now; publishHost(); }
   } else if (remote){
-    // guest: move our own mallet locally for instant response
-    if (role === 'guest'){ moveMallet(guestMallet, 1, remote.fz[1], dt); sendGuestMallet(now); }
-    for (const ev of remote.ev || []){ if (ev[0] > lastEvSeen){ playEvent({ n:ev[0], k:ev[1], p:ev[2], x:ev[3] }); lastEvSeen = ev[0]; } }
+    if (role === 'guest'){ moveMallet(guestMallet, 1, remote.fz[1], dt, sets.sensitivity); sendGuestMallet(now); }
+    for (const ev of remote.ev || []){
+      if (ev[0] > lastEvSeen){ playEvent({ n:ev[0], k:ev[1], p:ev[2], x:ev[3] }); lastEvSeen = ev[0]; }
+    }
   }
+
   render();
-  updateHud();
-  const vs = viewState();
-  const phaseKey = (vs ? vs.phase : '') + mode + role + oppAway + hostMissing + paused + !!remote;
-  if (phaseKey !== lastPhaseKey){ lastPhaseKey = phaseKey; updatePanels(); }
+  updateInGameHud();
 }
-let lastPhaseKey = '';
 
-/* ---------------- Local modes ---------------- */
-// Phones and iPads only allow sound after a tap, so switch audio on from the Play tap itself.
+/* ---------------- Game Modes Execution ---------------- */
 function unlockAudio(){
-  if (!$('snd').checked) return;
-  try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {}
-}
-// Fit the rink to the screen for play and bring it into view (on phones the menu sits below the rink).
-function enterPlayLayout(){
-  document.body.classList.toggle('playing', mode !== 'demo');
-  sizeRink();
-  requestAnimationFrame(() => { try { cv.scrollIntoView({ block:isNarrow() ? 'start' : 'nearest', behavior:reduceMotion ? 'auto' : 'smooth' }); } catch (e) { cv.scrollIntoView(); } });
-}
-function startBot(){
-  level = +document.querySelector('input[name="lv"]:checked').value;
-  savePrefs({ lv:level });
-  mode = 'bot'; role = null; paused = false;
-  g = newGame(['You', ['', 'Computer (easy)', 'Computer', 'Computer (hard)'][level]]);
-  g.serveTo = 0; lastEvSeen = 0; trails.clear();
-  unlockAudio(); updatePanels(); enterPlayLayout();
-}
-function startLocal(){
-  mode = 'local'; role = null; paused = false;
-  g = newGame(['Cyan', 'Magenta']); lastEvSeen = 0; trails.clear();
-  unlockAudio(); updatePanels(); enterPlayLayout();
-}
-function toMenu(){
-  leaveOnline();
-  mode = 'demo'; role = null; paused = false; menuScreen = 'menu';
-  g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0); lastEvSeen = 0; trails.clear(); flashMsg = null;
-  updatePanels(); document.body.classList.remove('playing'); sizeRink();
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    if (actx && actx.state === 'suspended') actx.resume();
+  } catch (e) {}
 }
 
-/* ---------------- Online: peer-to-peer over WebRTC (PeerJS) ---------------- */
-// The host's browser runs the match and streams it to the guest; the guest streams back its mallet position.
-// PeerJS's free public server only introduces the two browsers; game traffic then flows directly between them.
-const NET_PREFIX = 'neonairhockey-v1-';
-let peer = null, conn = null, sendAt = 0, joinTimer = 0;
-const netAvailable = () => typeof window.Peer === 'function';
-function refreshOnlineAvail(){
-  if (netAvailable()){ $('onAvail').hidden = true; $('onForms').hidden = false; }
-  else { $('onForms').hidden = true; $('onAvail').hidden = false; $('onAvail').textContent = 'Online play needs an internet connection. Check your connection, then reload the app.'; }
+function startBotMatch(){
+  const sets = loadSettings();
+  level = sets.lv || 2;
+  const pName = cleanName($('setupPlayerName') ? $('setupPlayerName').value : '') || 'You';
+  mode = 'bot'; role = null; paused = false; myPausesUsed = 0;
+  g = newGame([pName, ['', 'Computer (Easy)', 'Computer', 'Computer (Hard)'][level]]);
+  g.serveTo = 0; lastEvSeen = 0; trails.clear();
+  unlockAudio();
+  setScreen('match');
 }
-const ALPH = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-const makeCode = () => Array.from({ length:4 }, () => ALPH[Math.floor(Math.random() * ALPH.length)]).join('');
-function onErr(t){ $('onErr').textContent = t || ''; $('onErr').hidden = !t; }
-function onStatus(t){ $('onStatus').textContent = t || ''; $('onStatus').hidden = !t; }
+
+function startLocalMatch(){
+  mode = 'local'; role = null; paused = false; myPausesUsed = 0;
+  g = newGame(['Cyan', 'Magenta']); lastEvSeen = 0; trails.clear();
+  unlockAudio();
+  setScreen('match');
+}
+
+function returnToTitle(){
+  leaveOnline();
+  mode = 'demo'; role = null; paused = false; flashMsg = null;
+  g = newGame(['Cyan', 'Magenta']); g.phase = 'play'; serve(g, 0); lastEvSeen = 0; trails.clear();
+  setScreen('screenTitle');
+}
+
+/* ---------------- Online Protocol v2 (PeerJS) ---------------- */
+const NET_PREFIX = 'neonairhockey-v2-';
+let peer = null, conn = null, sendAt = 0, joinTimer = 0;
+const netAvailable = () => typeof window !== 'undefined' && typeof window.Peer === 'function';
+
+function onErr(t){
+  const el = $('onErr');
+  if (el){ el.textContent = t || ''; el.hidden = !t; }
+}
+function onStatus(t){
+  const el = $('onStatus');
+  if (el){ el.textContent = t || ''; el.hidden = !t; }
+}
 function peerErrText(e, c){
   switch (e && e.type){
-    case 'peer-unavailable': return `No game found with code ${c}. Check the code, and make sure your friend still has the game open.`;
-    case 'network': case 'server-error': case 'socket-error': case 'socket-closed': return 'Could not reach the matchmaking server. Check your internet connection and try again.';
-    case 'browser-incompatible': return 'This browser does not support online play. Try Chrome, Edge, Firefox or Safari.';
-    case 'webrtc': return 'The connection between your devices failed. Some school, office or mobile networks block direct connections; try a different Wi-Fi network.';
-    default: return 'The online connection failed. Please try again.';
+    case 'peer-unavailable': return `No game found with code ${c}. Check the code and make sure your friend still has the game open.`;
+    case 'network': case 'server-error': case 'socket-error': case 'socket-closed': return 'Could not reach matchmaking server. Check your internet connection and try again.';
+    case 'browser-incompatible': return 'Browser does not support WebRTC online play.';
+    case 'webrtc': return 'Connection between devices failed. Try another network.';
+    default: return 'Online connection failed. Please try again.';
   }
 }
-function createGame(attempt){
+
+function createGame(attempt = 0){
   if (!netAvailable()) return;
-  attempt = attempt || 0;
   onErr(''); onStatus('Creating game…');
-  myNick = cleanName($('oName').value) || 'Cyan'; savePrefs({ oName:myNick === 'Cyan' ? '' : myNick });
-  const c = makeCode();
+  myNick = cleanName($('oName').value) || 'Cyan';
+  saveSettings({ oName:myNick === 'Cyan' ? '' : myNick });
+  const c = Array.from({ length:4 }, () => 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 30)]).join('');
   $('create').disabled = true;
   const p = new Peer(NET_PREFIX + c.toLowerCase(), { debug:0 });
   peer = p;
+
   p.on('open', () => {
     if (peer !== p) return;
-    if (mode === 'online' && role === 'host'){ connected = true; updatePanels(); return; }   // reconnected to the server
     $('create').disabled = false; onStatus('');
-    code = c; mode = 'online'; role = 'host'; connected = true; guestPeer = null; oppAway = false; paused = false;
+    code = c; mode = 'online'; role = 'host'; connected = true; oppAway = false; paused = false; myPausesUsed = 0;
     g = newGame([myNick, 'Waiting…']); g.phase = 'wait'; lastEvSeen = 0; trails.clear();
-    updatePanels(); enterPlayLayout();
+    $('onForms').hidden = true;
+    $('pLobby').hidden = false;
+    $('lobbyHost').hidden = false;
+    $('lobbyGuest').hidden = true;
+    $('lobbyCode').textContent = code;
   });
   p.on('connection', acceptGuest);
-  p.on('disconnected', () => { if (peer !== p) return; connected = false; updatePanels(); setTimeout(() => { try { if (peer === p && !p.destroyed) p.reconnect(); } catch (e) {} }, 1000); });
+  p.on('disconnected', () => {
+    if (peer !== p) return;
+    connected = false; updateOnlineHudStatus();
+    setTimeout(() => { try { if (peer === p && !p.destroyed) p.reconnect(); } catch (e) {} }, 1000);
+  });
   p.on('error', e => {
     if (peer !== p) return;
     if (e.type === 'unavailable-id' && attempt < 4){ p.destroy(); createGame(attempt + 1); return; }
     $('create').disabled = false; onStatus('');
-    if (mode !== 'online'){ onErr(peerErrText(e, c)); p.destroy(); peer = null; }
-    else if (e.type === 'network' || e.type === 'server-error'){ connected = false; updatePanels(); }
+    onErr(peerErrText(e, c));
+    p.destroy(); peer = null;
   });
 }
+
 function acceptGuest(c){
-  if (conn && conn.open){                                   // a third device: the game is full
-    c.on('open', () => { try { c.send({ t:'full' }); } catch (e) {} setTimeout(() => c.close(), 400); });
+  if (conn && conn.open){
+    c.on('open', () => { try { c.send({ t:'full', v:2 }); } catch (e) {} setTimeout(() => c.close(), 400); });
     return;
   }
   conn = c;
   c.on('open', () => {
     if (conn !== c) return;
-    guestPeer = c.peer; oppAway = false;
+    oppAway = false;
     if (g.phase === 'wait'){ g.phase = 'countdown'; g.t = 3; }
-    publishHost(); updatePanels();
+    publishHost();
+    setScreen('match');
   });
   c.on('data', d => {
     if (conn !== c || !d || typeof d !== 'object') return;
-    if (d.t === 'hello'){ g.names[1] = cleanName(d.nick) || 'Magenta'; }
-    else if (d.t === 'm' && Number.isFinite(d.x) && Number.isFinite(d.y)){
+    if (d.v && d.v < 2){
+      try { c.send({ t:'ver_mismatch', v:2, msg:'Your friend has an older version — ask them to reload the app.' }); } catch (e) {}
+      setTimeout(() => c.close(), 400);
+      return;
+    }
+    if (d.t === 'hello'){
+      g.names[1] = cleanName(d.nick) || 'Magenta';
+    } else if (d.t === 'm' && Number.isFinite(d.x) && Number.isFinite(d.y)){
       g.pd[1].tx = clamp(d.x, 0, W); g.pd[1].ty = clamp(d.y, 0, H);
       const nick = cleanName(d.n); if (nick && nick !== g.names[1]) g.names[1] = nick;
+    } else if (d.t === 'pause'){
+      paused = !!d.paused;
+      updatePauseOverlay();
     }
   });
-  c.on('close', () => { if (conn === c){ conn = null; oppAway = g.phase !== 'wait'; updatePanels(); } });
-  c.on('error', () => {});
+  c.on('close', () => { if (conn === c){ conn = null; oppAway = g.phase !== 'wait'; updatePauseOverlay(); } });
 }
+
 function joinGame(){
   if (!netAvailable()) return;
   onErr('');
   const c = ($('jCode').value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if (c.length !== 4){ onErr('Game codes have 4 letters or digits, like K7QF.'); return; }
-  myNick = cleanName($('oName').value) || 'Magenta'; savePrefs({ oName:myNick === 'Magenta' ? '' : myNick });
+  myNick = cleanName($('oName').value) || 'Magenta';
+  saveSettings({ oName:myNick === 'Magenta' ? '' : myNick });
   $('join').disabled = true; onStatus(`Connecting to game ${c}…`);
-  const fail = msg => { clearTimeout(joinTimer); $('join').disabled = false; onStatus(''); onErr(msg); if (mode === 'online') toMenu(); leaveOnline(); menuScreen = 'online'; updatePanels(); };
+  const fail = msg => {
+    clearTimeout(joinTimer); $('join').disabled = false; onStatus(''); onErr(msg);
+    $('onForms').hidden = false; $('pLobby').hidden = true;
+  };
   const p = new Peer({ debug:0 });
   peer = p;
-  joinTimer = setTimeout(() => { if (peer === p && !(conn && conn.open)) fail(`Could not connect to game ${c}. Check the code, and that both of you are online. Some school or office networks block game connections.`); }, 15000);
+  joinTimer = setTimeout(() => {
+    if (peer === p && !(conn && conn.open)) fail(`Could not connect to game ${c}. Check code and connection.`);
+  }, 15000);
+
   p.on('open', () => {
     if (peer !== p) return;
     const cn = p.connect(NET_PREFIX + c.toLowerCase(), { serialization:'json', reliable:false });
@@ -983,51 +1725,78 @@ function joinGame(){
       clearTimeout(joinTimer); $('join').disabled = false; onStatus('');
       code = c; mode = 'online'; role = 'guest'; connected = true; remote = null; hostMissing = false; lastEvSeen = 0; trails.clear();
       guestMallet.x = guestMallet.tx = W / 2; guestMallet.y = guestMallet.ty = 130;
-      cn.send({ t:'hello', nick:myNick });
-      updatePanels(); enterPlayLayout();
+      cn.send({ t:'hello', v:2, nick:myNick });
+      setScreen('match');
     });
     cn.on('data', d => {
       if (conn !== cn || !d || typeof d !== 'object') return;
+      if (d.t === 'ver_mismatch' || (d.v && d.v < 2)){
+        fail(d.msg || 'Your friend has an older version — ask them to reload the app.');
+        return;
+      }
       if (d.t === 'full'){ fail('That game already has two players.'); return; }
+      if (d.t === 'pause'){ paused = !!d.paused; updatePauseOverlay(); return; }
       if (d.t !== 's') return;
       const s = sanitizeRemote(d.s); if (!s) return;
       const first = !remote;
       remote = s; remoteAt = performance.now(); hostMissing = false;
-      if (first){ lastEvSeen = s.ev.length ? s.ev[s.ev.length - 1][0] : 0; smooth.pd0.x = s.pd[0][0]; smooth.pd0.y = s.pd[0][1]; updatePanels(); }
+      if (first){ lastEvSeen = s.ev.length ? s.ev[s.ev.length - 1][0] : 0; smooth.pd0.x = s.pd[0][0]; smooth.pd0.y = s.pd[0][1]; }
     });
-    cn.on('close', () => { if (conn === cn){ hostMissing = true; connected = false; updatePanels(); } });
-    cn.on('error', () => {});
+    cn.on('close', () => { if (conn === cn){ hostMissing = true; connected = false; updateOnlineHudStatus(); } });
   });
   p.on('error', e => {
     if (peer !== p) return;
-    if (mode === 'online' && remote){ hostMissing = true; updatePanels(); return; }
+    if (mode === 'online' && remote){ hostMissing = true; updateOnlineHudStatus(); return; }
     fail(peerErrText(e, c));
   });
 }
+
+function updateOnlineHudStatus(){
+  const pill = $('hudConnPill'), txt = $('hudConnText'), dot = $('hudConnDot');
+  if (!pill) return;
+  pill.hidden = (mode !== 'online');
+  if (connected){
+    dot.style.background = 'var(--lime)';
+    txt.textContent = 'ONLINE · ' + code;
+  } else {
+    dot.style.background = 'var(--warn)';
+    txt.textContent = 'RECONNECTING…';
+  }
+}
+
 const ri = v => Math.round(v);
 function publishHost(){
   if (!conn || !conn.open) return;
   const s = {
-    ph:g.phase, t:Math.round(g.t * 10) / 10, sc:g.sc,
+    v:2, ph:g.phase, t:Math.round(g.t * 10) / 10, sc:g.sc,
     pk:g.pucks.map(p => [ri(p.x), ri(p.y), ri(p.vx), ri(p.vy)]),
     pd:[[ri(g.pd[0].x), ri(g.pd[0].y)], [ri(g.pd[1].x), ri(g.pd[1].y)]],
     pu:g.pu ? [PU_TYPES.indexOf(g.pu.type), ri(g.pu.x), ri(g.pu.y), Math.round(g.pu.life * 10) / 10] : null,
     fz:g.fz.map(v => Math.round(v * 10) / 10), sh:g.sh.map(v => Math.round(v * 10) / 10),
-    nm:g.names, w:g.winner, gp:guestPeer,
+    nm:g.names, w:g.winner,
     ev:g.events.slice(-6).map(e => [e.n, e.k, e.p, typeof e.x === 'string' ? e.x : (e.x || 0)]),
+    st:g.stats
   };
-  try { conn.send({ t:'s', s }); } catch (e) {}
+  try { conn.send({ t:'s', v:2, s }); } catch (e) {}
 }
 function sendGuestMallet(now){
   if (role !== 'guest' || !conn || !conn.open || now - sendAt < 33) return;
   sendAt = now;
-  try { conn.send({ t:'m', x:Math.round(guestMallet.tx), y:Math.round(guestMallet.ty), n:myNick }); } catch (e) {}
+  try { conn.send({ t:'m', v:2, x:Math.round(guestMallet.tx), y:Math.round(guestMallet.ty), n:myNick }); } catch (e) {}
 }
+function publishPause(isPaused){
+  if (conn && conn.open){
+    try { conn.send({ t:'pause', v:2, paused:isPaused }); } catch (e) {}
+  }
+}
+
 function num(v, d){ return Number.isFinite(v) ? v : d; }
 function sanitizeRemote(s){
   if (!s || typeof s !== 'object') return null;
+  if (s.v && s.v < 2) return null;
   const arr2 = (a, d) => Array.isArray(a) ? [num(a[0], d), num(a[1], d)] : [d, d];
   return {
+    v:2,
     ph:['wait', 'countdown', 'play', 'goal', 'over'].includes(s.ph) ? s.ph : 'play',
     t:num(s.t, 0), sc:arr2(s.sc, 0).map(v => clamp(Math.round(v), 0, 99)),
     pk:Array.isArray(s.pk) ? s.pk.slice(0, 3).filter(p => Array.isArray(p) && p.slice(0, 4).every(Number.isFinite)).map(p => p.slice(0, 4)) : [],
@@ -1035,76 +1804,286 @@ function sanitizeRemote(s){
     pu:Array.isArray(s.pu) && s.pu.slice(0, 4).every(Number.isFinite) && s.pu[0] >= 0 && s.pu[0] < 3 ? s.pu.slice(0, 4) : null,
     fz:arr2(s.fz, 0), sh:arr2(s.sh, 0),
     nm:[cleanName(s.nm && s.nm[0]) || 'Cyan', cleanName(s.nm && s.nm[1]) || 'Magenta'],
-    w:s.w === 0 || s.w === 1 ? s.w : null, gp:typeof s.gp === 'string' ? s.gp : null,
+    w:s.w === 0 || s.w === 1 ? s.w : null,
     ev:Array.isArray(s.ev) ? s.ev.filter(e => Array.isArray(e) && Number.isInteger(e[0]) && typeof e[1] === 'string').slice(-6) : [],
+    st:s.st && typeof s.st === 'object' ? s.st : null
   };
 }
+
 function leaveOnline(){
-  clearTimeout(findTimer); clearTimeout(joinTimer);
+  clearTimeout(joinTimer);
   const c = conn, p = peer;
   conn = null; peer = null;
   try { if (c) c.close(); } catch (e) {}
   try { if (p) p.destroy(); } catch (e) {}
-  remote = null; code = null; guestPeer = null; oppAway = false; hostMissing = false;
+  remote = null; code = null; oppAway = false; hostMissing = false;
 }
-function inviteLink(){ return location.origin + location.pathname + '#' + code; }
+function inviteLink(){ return (typeof location !== 'undefined') ? location.origin + location.pathname + '#' + code : ''; }
 
-/* ---------------- Wiring ---------------- */
+/* ---------------- Wiring & UI Setup ---------------- */
 function init(){
-  const prefs = loadPrefs();
-  if ([1, 2, 3].includes(prefs.lv)) $('lv' + prefs.lv).checked = true;
-  if (prefs.oName) $('oName').value = prefs.oName;
-  if (prefs.snd === false) $('snd').checked = false;
-  $('goBot').addEventListener('click', startBot);
-  $('goLocal').addEventListener('click', startLocal);
-  $('goOnline').addEventListener('click', () => { menuScreen = 'online'; onErr(''); onStatus(''); refreshOnlineAvail(); updatePanels(); });
-  $('onBack').addEventListener('click', () => { menuScreen = 'menu'; updatePanels(); });
-  $('create').addEventListener('click', () => { unlockAudio(); createGame(); });
-  $('join').addEventListener('click', () => { unlockAudio(); joinGame(); });
-  $('jCode').addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
-  $('cancelLobby').addEventListener('click', toMenu);
-  $('leave').addEventListener('click', toMenu);
-  $('leave2').addEventListener('click', toMenu);
-  $('pauseBtn').addEventListener('click', () => { paused = !paused; updatePanels(); });
-  $('snd').addEventListener('change', () => savePrefs({ snd:$('snd').checked }));
-  $('copyCode').addEventListener('click', () => {
+  const sets = loadSettings();
+
+  // Settings values binding
+  const sensInput = $('setSensitivity'), sensVal = $('valSensitivity');
+  if (sensInput && sensVal){
+    sensInput.value = sets.sensitivity;
+    sensVal.textContent = sets.sensitivity.toFixed(1) + '×';
+    sensInput.addEventListener('input', () => {
+      const val = parseFloat(sensInput.value);
+      sensVal.textContent = val.toFixed(1) + '×';
+      saveSettings({ sensitivity:val });
+    });
+  }
+  const sndInput = $('setSndVol'), sndVal = $('valSndVol');
+  if (sndInput && sndVal){
+    sndInput.value = Math.round(sets.sndVol * 100);
+    sndVal.textContent = sndInput.value + '%';
+    sndInput.addEventListener('input', () => {
+      sndVal.textContent = sndInput.value + '%';
+      saveSettings({ sndVol:parseInt(sndInput.value, 10) / 100 });
+    });
+  }
+  const musInput = $('setMusicVol'), musVal = $('valMusicVol');
+  if (musInput && musVal){
+    musInput.value = Math.round(sets.musicVol * 100);
+    musVal.textContent = musInput.value + '%';
+    musInput.addEventListener('input', () => {
+      musVal.textContent = musInput.value + '%';
+      saveSettings({ musicVol:parseInt(musInput.value, 10) / 100 });
+    });
+  }
+  const vibInput = $('setVibrate');
+  if (vibInput){
+    vibInput.checked = sets.vibrate;
+    vibInput.addEventListener('change', () => saveSettings({ vibrate:vibInput.checked }));
+  }
+  const effInput = $('setEffects');
+  if (effInput){
+    effInput.checked = sets.effects;
+    effInput.addEventListener('change', () => saveSettings({ effects:effInput.checked }));
+  }
+  const cbInput = $('setColorblind');
+  if (cbInput){
+    cbInput.checked = sets.colorblind;
+    cbInput.addEventListener('change', () => saveSettings({ colorblind:cbInput.checked }));
+  }
+  const lhInput = $('setLeftHanded');
+  if (lhInput){
+    lhInput.checked = sets.leftHanded;
+    lhInput.addEventListener('change', () => saveSettings({ leftHanded:lhInput.checked }));
+  }
+  const spInput = $('setShowSpeed');
+  if (spInput){
+    spInput.checked = sets.showSpeed;
+    spInput.addEventListener('change', () => saveSettings({ showSpeed:spInput.checked }));
+  }
+  const qualH = $('qualHigh'), qualL = $('qualLow');
+  if (qualH && qualL){
+    if (sets.quality === 'low') qualL.checked = true; else qualH.checked = true;
+    qualH.addEventListener('change', () => saveSettings({ quality:'high' }));
+    qualL.addEventListener('change', () => saveSettings({ quality:'low' }));
+  }
+
+  // Bind Buttons
+  $('btnTitlePlay')?.addEventListener('click', () => setScreen('screenModes'));
+  $('btnTitleOnline')?.addEventListener('click', () => {
+    $('onForms').hidden = false; $('pLobby').hidden = true;
+    setScreen('screenOnline');
+  });
+  $('btnTitleSettings')?.addEventListener('click', () => showOverlay('overlaySettings'));
+  $('btnTitleStats')?.addEventListener('click', () => {
+    const s = loadCareerStats();
+    $('statMatches').textContent = s.matches;
+    $('statWins').textContent = s.wins;
+    $('statGoals').textContent = s.goals;
+    $('statFastest').textContent = s.fastest + ' km/h';
+    $('statRally').textContent = s.rally + ' hits';
+    $('statPowerups').textContent = s.powerups;
+    showOverlay('overlayStats');
+  });
+  $('btnTitleRules')?.addEventListener('click', () => showOverlay('overlayRules'));
+
+  $('btnCloseSettings')?.addEventListener('click', () => hideOverlay('overlaySettings'));
+  $('btnCloseStats')?.addEventListener('click', () => hideOverlay('overlayStats'));
+  $('btnDoneStats')?.addEventListener('click', () => hideOverlay('overlayStats'));
+  $('btnCloseRules')?.addEventListener('click', () => hideOverlay('overlayRules'));
+  $('btnDoneRules')?.addEventListener('click', () => hideOverlay('overlayRules'));
+
+  $('btnResetStats')?.addEventListener('click', () => {
+    if (confirm('Reset your lifetime career stats?')){
+      localStorage.removeItem(STATS_KEY);
+      $('statMatches').textContent = 0; $('statWins').textContent = 0; $('statGoals').textContent = 0;
+      $('statFastest').textContent = '0 km/h'; $('statRally').textContent = '0 hits'; $('statPowerups').textContent = 0;
+    }
+  });
+
+  // Mode Selection Cards
+  $('cardModeBot')?.addEventListener('click', () => setScreen('screenSetup'));
+  $('cardModeLocal')?.addEventListener('click', startLocalMatch);
+  $('cardModeOnline')?.addEventListener('click', () => {
+    $('onForms').hidden = false; $('pLobby').hidden = true;
+    setScreen('screenOnline');
+  });
+
+  // Setup Screen
+  $('btnStartBotMatch')?.addEventListener('click', startBotMatch);
+
+  // Online Action Buttons
+  $('create')?.addEventListener('click', () => { unlockAudio(); createGame(); });
+  $('join')?.addEventListener('click', () => { unlockAudio(); joinGame(); });
+  $('jCode')?.addEventListener('keydown', e => { if (e.key === 'Enter') joinGame(); });
+  $('cancelLobby')?.addEventListener('click', () => {
+    leaveOnline();
+    $('onForms').hidden = false; $('pLobby').hidden = true;
+    setScreen('screenOnline');
+  });
+
+  // Fullscreen button
+  $('hudFullscreenBtn')?.addEventListener('click', () => {
+    if (!document.fullscreenElement){
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  });
+
+  // Pause button & Overlay
+  $('hudPauseBtn')?.addEventListener('click', togglePause);
+  $('btnPauseResume')?.addEventListener('click', togglePause);
+  $('btnPauseRestart')?.addEventListener('click', () => {
+    togglePause();
+    if (mode === 'bot') startBotMatch();
+    else if (mode === 'local') startLocalMatch();
+  });
+  $('btnPauseSettings')?.addEventListener('click', () => showOverlay('overlaySettings'));
+  $('btnPauseQuit')?.addEventListener('click', () => {
+    togglePause();
+    returnToTitle();
+  });
+
+  // Results Screen Actions
+  $('btnResRematch')?.addEventListener('click', () => {
+    if (mode === 'bot') startBotMatch();
+    else if (mode === 'local') startLocalMatch();
+    else if (mode === 'online' && role === 'host'){
+      const n = g.names.slice(); g = newGame(n); lastEvSeen = 0; trails.clear(); publishHost();
+      setScreen('match');
+    }
+  });
+  $('btnResChangeMode')?.addEventListener('click', () => setScreen('screenModes'));
+  $('btnResShare')?.addEventListener('click', () => {
+    const vs = viewState();
+    const w = vs.winner === 0 ? vs.names[0] : vs.names[1];
+    const fastest = Math.max(vs.stats?.fastestShot[0] || 0, vs.stats?.fastestShot[1] || 0);
+    const text = `Neon Air Hockey 🏓 ${w} won ${vs.sc[0]}–${vs.sc[1]}! Fastest shot: ${fastest} km/h — https://mdsamhussain1996.github.io/neon-air-hockey/`;
+    if (navigator.share){
+      navigator.share({ title:'Neon Air Hockey', text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => alert('Result copied to clipboard!')).catch(() => {});
+    }
+  });
+
+  // Dismiss rotation hint
+  $('dismissRotateBtn')?.addEventListener('click', () => {
+    $('rotateHint').hidden = true;
+    try { localStorage.setItem('rotateHintDismissed', '1'); } catch (e) {}
+  });
+
+  // Back Navigation generic
+  document.querySelectorAll('[data-back]').forEach(b => {
+    b.addEventListener('click', () => {
+      const target = b.getAttribute('data-back');
+      if (target === 'title') returnToTitle();
+      else if (target === 'modes') setScreen('screenModes');
+    });
+  });
+
+  // Copy Code & Link
+  $('copyCode')?.addEventListener('click', () => {
     const b = $('copyCode');
-    const fallback = () => { const r = document.createRange(); r.selectNodeContents($('lobbyCode')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Press Ctrl+C'; };
-    try { navigator.clipboard.writeText(code).then(() => { b.textContent = 'Copied'; }, fallback); } catch (e) { fallback(); }
+    navigator.clipboard.writeText(code).then(() => {
+      b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy Code', 1500);
+    }).catch(() => {});
   });
-  $('copyLink').addEventListener('click', () => {
+  $('copyLink')?.addEventListener('click', () => {
     const b = $('copyLink'), link = inviteLink();
-    const fallback = () => { b.textContent = link; };
-    try { navigator.clipboard.writeText(link).then(() => { b.textContent = 'Link copied'; setTimeout(() => { b.textContent = 'Copy invite link'; }, 2000); }, fallback); } catch (e) { fallback(); }
+    navigator.clipboard.writeText(link).then(() => {
+      b.textContent = 'Copied!'; setTimeout(() => b.textContent = 'Copy Link', 1500);
+    }).catch(() => {});
   });
-  if (navigator.share){ $('shareLink').hidden = false; $('shareLink').addEventListener('click', () => { navigator.share({ title:'Neon Air Hockey', text:`Join my air hockey game! Code ${code}`, url:inviteLink() }).catch(() => {}); }); }
-  // invite links look like …/#K7QF: open the Join form with the code filled in
+
+  // Hash invite link handler
   const fromHash = () => {
     const m = /^#([A-Za-z0-9]{4})$/.exec(location.hash || '');
-    if (m && mode === 'demo'){ $('jCode').value = m[1].toUpperCase(); menuScreen = 'online'; refreshOnlineAvail(); updatePanels(); onStatus('You were invited to game ' + m[1].toUpperCase() + '. Type your name and press Join game.'); }
+    if (m && mode === 'demo'){
+      $('jCode').value = m[1].toUpperCase();
+      $('onForms').hidden = false; $('pLobby').hidden = true;
+      setScreen('screenOnline');
+      onStatus(`Invited to game ${m[1].toUpperCase()}! Click Join Match to connect.`);
+    }
   };
   fromHash(); window.addEventListener('hashchange', fromHash);
-  // install as an app (Chrome, Edge, Android)
+
+  // PWA Install prompt
   let installEvt = null;
-  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; $('installBtn').hidden = false; });
-  $('installBtn').addEventListener('click', async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch (e) {} installEvt = null; $('installBtn').hidden = true; });
-  window.addEventListener('appinstalled', () => { $('installBtn').hidden = true; });
-  if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
-  window.addEventListener('beforeunload', leaveOnline);
-  $('again').addEventListener('click', () => {
-    if (mode === 'bot') startBot();
-    else if (mode === 'local') startLocal();
-    else if (mode === 'online' && role === 'host'){ const n = g.names.slice(); g = newGame(n); lastEvSeen = 0; trails.clear(); publishHost(); updatePanels(); }
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); installEvt = e;
+    const btn = $('installBtn'); if (btn) btn.hidden = false;
   });
-  document.addEventListener('visibilitychange', () => { if (document.hidden && (mode === 'bot' || mode === 'local') && g.phase !== 'over'){ paused = true; updatePanels(); } });
+  $('installBtn')?.addEventListener('click', async () => {
+    if (!installEvt) return;
+    installEvt.prompt();
+    try { await installEvt.userChoice; } catch (e) {}
+    installEvt = null; $('installBtn').hidden = true;
+  });
+
+  // Service Worker Registration & Reload Notification
+  const reloadBtn = $('swReloadBtn');
+  if (reloadBtn) reloadBtn.addEventListener('click', () => location.reload());
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')){
+    navigator.serviceWorker.register('sw.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller){
+            const banner = $('swUpdate');
+            if (banner) banner.hidden = false;
+          }
+        });
+      });
+    }).catch(() => {});
+  }
+
+  attachInputs();
+
   let rsT = 0;
   window.addEventListener('resize', () => { clearTimeout(rsT); rsT = setTimeout(sizeRink, 120); });
-  sizeRink(); updatePanels();
+  sizeRink();
+  setScreen('screenTitle');
   requestAnimationFrame(frame);
 }
-init();
+
+if (typeof window !== 'undefined'){
+  window.nah = {
+    setScreen, showResultsScreen, showOverlay, hideOverlay, viewState, newGame,
+    g: () => g
+  };
+}
+
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = {
+    newGame, step, serve, moveMallet, clampMallet, applyPowerUp, aiThink,
+    W, H, PR, MR, GW, GX0, GX1, WIN, STEP, MALLET_V, PUCK_MAX, E_WALL, E_MALLET,
+    sanitizeRemote
+  };
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined'){
+  init();
+}
 })();
 </script>
-
 </body>
 </html>

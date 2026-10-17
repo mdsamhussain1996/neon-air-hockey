@@ -1,5 +1,5 @@
 // Neon Air Hockey service worker: makes the app installable and lets offline modes start without internet.
-const CACHE = 'neon-air-hockey-v1';
+const CACHE = 'neon-air-hockey-v2';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
